@@ -1,8 +1,8 @@
+using System.Globalization;
+using System.Security.Cryptography;
 namespace DatasetHub;
 
 public sealed record CollectionProgress(string MachineId, string PcId, string Path, string Message);
-using System.Globalization;
-using System.Security.Cryptography;
 
 public sealed class Collector(CollectorOptions options, Action<CollectionProgress>? progress = null)
 {
