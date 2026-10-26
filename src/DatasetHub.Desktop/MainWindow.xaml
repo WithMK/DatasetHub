@@ -25,7 +25,7 @@
   <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,12">
    <CheckBox Content="자동 반복 (오늘·이전 2일 재확인)" IsChecked="{Binding AutoRepeat}" VerticalAlignment="Center"/>
    <TextBlock Text="주기(분)" Margin="18,0,7,0" VerticalAlignment="Center"/>
-   <TextBox Text="{Binding IntervalMinutes, UpdateSourceTrigger=PropertyChanged}" Width="60" VerticalContentAlignment="Center"/>
+   <ComboBox ItemsSource="{Binding IntervalChoices}" SelectedItem="{Binding IntervalMinutes}" Width="74" MinHeight="28" VerticalContentAlignment="Center"/>
   </StackPanel>
   <Border Grid.Row="4" Background="#EEF3F8" Padding="12" Margin="0,0,0,12" CornerRadius="5">
    <StackPanel>

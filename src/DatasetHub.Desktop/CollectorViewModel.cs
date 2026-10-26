@@ -26,7 +26,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     private string status = "설정 파일과 기간을 확인하세요.";
     private string summary = "";
     private bool autoRepeat;
-    private int intervalMinutes = 60;
+    private int intervalMinutes = 5;
     private CancellationTokenSource? running;
     private readonly RelayCommand start;
     private readonly RelayCommand stop;
@@ -38,6 +38,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     public string Status { get => status; private set { status = value; Changed(); } }
     public string Summary { get => summary; private set { summary = value; Changed(); } }
     public bool AutoRepeat { get => autoRepeat; set { autoRepeat = value; Changed(); } }
+    public IReadOnlyList<int> IntervalChoices { get; } = [1, 5, 10, 30, 60];
     public int IntervalMinutes { get => intervalMinutes; set { intervalMinutes = value; Changed(); } }
     public ICommand StartCommand => start;
     public ICommand StopCommand => stop;
