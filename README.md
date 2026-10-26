@@ -6,7 +6,7 @@
 
 **설계 및 저장소 준비 단계입니다. 실행 가능한 수집 프로그램은 아직 구현하지 않았습니다.**
 
-실제 로그·JSON 양식은 미정입니다. 1차 개발은 내용에 의존하지 않는 파일 수집·SQLite 이력·재시도·중단 복구에 집중합니다.
+입력 텍스트 로그는 SEM_LOG 2.0 표준 11필드의 탭 구분 .log를 따릅니다. 검사 JSON 양식은 미정입니다. 1차 개발은 파일 수집·SQLite 이력·재시도·중단 복구와 표준 로그 기본 파싱을 포함합니다.
 
 ## 기본 원칙
 
@@ -22,8 +22,9 @@
 
 | 경로 | 내용 |
 |---|---|
-| [docs/system-design.md](docs/system-design.md) | 전체 설계 v0.2 |
+| [docs/system-design.md](docs/system-design.md) | 전체 설계 v0.3 |
 | [docs/phase1-scope.md](docs/phase1-scope.md) | 1차 구현 범위·검수 기준 |
+| [docs/standard-log-input.md](docs/standard-log-input.md) | 입력 표준 로그 계약·파서 범위 |
 | [docs/decisions.md](docs/decisions.md) | 확정 사항·미정 항목 |
 | [config/collector.example.json](config/collector.example.json) | 비밀정보 없는 제안 설정 |
 | src/ | 구현 소스 추가 예정 |
