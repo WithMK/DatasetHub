@@ -35,6 +35,8 @@
 
 [임시 WPF 화면 사용법](docs/desktop-prototype.md)을 추가했습니다.
 
+[SDK 없이 시험하는 Windows ZIP 안내](docs/windows-bundle.md)가 있습니다. PR의 Windows CI가 완료되면 실행 결과에서 ZIP을 받을 수 있습니다.
+
 ## 시작 방법
 
 [첫 수집기 실행·검증 안내](docs/collector-prototype.md)를 참고하세요.

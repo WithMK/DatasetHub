@@ -11,10 +11,11 @@ namespace DatasetHub.Desktop;
 
 public sealed class CollectorViewModel : INotifyPropertyChanged
 {
-    private string configPath = "";
-    private DateTime? fromDate = DateTime.Today.AddDays(-1);
-    private DateTime? toDate = DateTime.Today.AddDays(-1);
-    private string status = "설정 파일과 기간을 선택하세요.";
+    private string configPath = File.Exists(Path.Combine(AppContext.BaseDirectory, "config", "collector.local-example.json"))
+        ? Path.Combine(AppContext.BaseDirectory, "config", "collector.local-example.json") : "";
+    private DateTime? fromDate = DateTime.Today;
+    private DateTime? toDate = DateTime.Today;
+    private string status = "설정 파일과 기간을 확인하세요.";
     private string summary = "";
     private CancellationTokenSource? running;
     private readonly RelayCommand start;
