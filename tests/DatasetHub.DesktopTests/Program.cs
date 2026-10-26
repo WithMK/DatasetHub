@@ -7,11 +7,6 @@ if (ConfigFilePicker.Select(new Stub(null, "new.json"), Set) || current != "prev
 if (ConfigFilePicker.Select(new Stub(true, ""), Set) || current != "previous.json") throw new Exception("Empty filename changed path.");
 if (!ConfigFilePicker.Select(new Stub(true, "new.json"), Set) || current != "new.json") throw new Exception("Selection failed.");
 Console.WriteLine("PASS file dialog cancel/close/selection");
-record Stub(bool? Result, string FileName) : IConfigFileDialog
-{
-    public bool? Show() => Result;
-}
-
 // Exercise the actual WPF modal cancel path on an STA thread.
 Exception? windowError = null;
 var uiThread = new Thread(() =>
@@ -29,3 +24,9 @@ uiThread.Start();
 if (!uiThread.Join(TimeSpan.FromSeconds(15))) throw new Exception("WPF modal dialog failed to close.");
 if (windowError != null) throw windowError;
 Console.WriteLine("PASS WPF modal cancel closes selector only");
+
+record Stub(bool? Result, string FileName) : IConfigFileDialog
+{
+    public bool? Show() => Result;
+}
+
