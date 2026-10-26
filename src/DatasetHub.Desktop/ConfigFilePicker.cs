@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+using System.Windows;
 
 namespace DatasetHub.Desktop;
 
@@ -8,20 +8,15 @@ public interface IConfigFileDialog
     string FileName { get; }
 }
 
-internal sealed class ConfigFileDialog : IConfigFileDialog
+internal sealed class ConfigFileDialog(Window owner, string currentPath) : IConfigFileDialog
 {
-    private readonly OpenFileDialog dialog = new()
-    {
-        Filter = "JSON 설정 (*.json)|*.json|모든 파일 (*.*)|*.*",
-        CheckFileExists = true
-    };
-    public bool? Show() => dialog.ShowDialog();
-    public string FileName => dialog.FileName;
+    private readonly ConfigPathWindow window = new(currentPath) { Owner = owner };
+    public bool? Show() => window.ShowDialog();
+    public string FileName => window.SelectedPath ?? "";
 }
 
 public static class ConfigFilePicker
 {
-    // Cancel, Escape and window-close all return without changing the current path.
     public static bool Select(IConfigFileDialog dialog, Action<string> setPath)
     {
         if (dialog.Show() != true) return false;

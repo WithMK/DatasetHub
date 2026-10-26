@@ -6,10 +6,10 @@ public partial class MainWindow : Window
     public MainWindow() { InitializeComponent(); DataContext = viewModel; }
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
-        try { ConfigFilePicker.Select(new ConfigFileDialog(), path => viewModel.ConfigPath = path); }
+        try { ConfigFilePicker.Select(new ConfigFileDialog(this, viewModel.ConfigPath), path => viewModel.ConfigPath = path); }
         catch (Exception ex)
         {
-            // A native file-dialog failure must not terminate the collection window.
+            // Keep the main window open if the in-app selector encounters an error.
             viewModel.ShowBrowseError(ex);
         }
     }
