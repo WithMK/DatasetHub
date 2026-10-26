@@ -1,0 +1,12 @@
+{
+  "archiveRoot": "../runtime/archive",
+  "databasePath": "../runtime/history.db",
+  "completionSuffix": ".done",
+  "equipments": [
+    {
+      "machineId": "DEMO001",
+      "enabled": true,
+      "pcs": [{ "pcId": "CTRL", "sourceRoot": "../runtime/mock-source" }]
+    }
+  ]
+}

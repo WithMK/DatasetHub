@@ -1,0 +1,23 @@
+name: Collector build and smoke checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build src/DatasetHub.Collector/DatasetHub.Collector.csproj --configuration Release
+      - run: dotnet run --project tests/DatasetHub.SmokeTests --configuration Release
+      - shell: pwsh
+        run: |
+          ./scripts/New-MockLogs.ps1
+          dotnet run --project src/DatasetHub.Collector --configuration Release -- config/collector.local-example.json 20261026 20261026
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project src/DatasetHub.Collector --configuration Release -- config/collector.local-example.json 20261026 20261026
+          exit $LASTEXITCODE
