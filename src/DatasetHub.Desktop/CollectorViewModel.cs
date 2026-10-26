@@ -25,6 +25,8 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     private DateTime? toDate = DateTime.Today;
     private string status = "설정 파일과 기간을 확인하세요.";
     private string summary = "";
+    private bool autoRepeat;
+    private int intervalMinutes = 60;
     private CancellationTokenSource? running;
     private readonly RelayCommand start;
     private readonly RelayCommand stop;
@@ -35,6 +37,8 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     public DateTime? ToDate { get => toDate; set { toDate = value; Changed(); } }
     public string Status { get => status; private set { status = value; Changed(); } }
     public string Summary { get => summary; private set { summary = value; Changed(); } }
+    public bool AutoRepeat { get => autoRepeat; set { autoRepeat = value; Changed(); } }
+    public int IntervalMinutes { get => intervalMinutes; set { intervalMinutes = value; Changed(); } }
     public ICommand StartCommand => start;
     public ICommand StopCommand => stop;
 
@@ -57,8 +61,9 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     private async Task RunAsync()
     {
         if (running != null) return;
-        if (fromDate == null || toDate == null || fromDate > toDate || string.IsNullOrWhiteSpace(configPath))
-        { Status = "설정 파일과 올바른 시작일·종료일을 입력하세요."; return; }
+        if (fromDate == null || toDate == null || fromDate > toDate || string.IsNullOrWhiteSpace(configPath) ||
+            (autoRepeat && intervalMinutes is < 1 or > 1440))
+        { Status = "설정·기간 및 자동 반복 주기(1~1440분)를 확인하세요."; return; }
         var cts = new CancellationTokenSource();
         running = cts; start.Refresh(); stop.Refresh();
         Messages.Clear(); Summary = ""; Status = "수집 중…";
@@ -71,19 +76,27 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
                 UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
             }) ?? throw new InvalidDataException("빈 설정 파일입니다.");
             options.Validate(Path.GetDirectoryName(path)!);
-            var first = DateOnly.FromDateTime(fromDate.Value);
-            var last = DateOnly.FromDateTime(toDate.Value);
             var ui = Application.Current.Dispatcher;
-            var result = await Task.Run(() => new Collector(options, item =>
+            do
             {
-                ui.BeginInvoke(() =>
+                // Automatic mode rolls with the date, covering today and the previous two days.
+                var first = autoRepeat ? DateOnly.FromDateTime(DateTime.Today.AddDays(-2)) : DateOnly.FromDateTime(fromDate.Value);
+                var last = autoRepeat ? DateOnly.FromDateTime(DateTime.Today) : DateOnly.FromDateTime(toDate.Value);
+                Status = $"{first:yyyy-MM-dd} ~ {last:yyyy-MM-dd} 확인 중…";
+                var result = await Task.Run(() => new Collector(options, item =>
                 {
-                    Messages.Add($"[{DateTime.Now:HH:mm:ss}] {item.MachineId}/{item.PcId} {item.Path} · {item.Message}");
-                    if (Messages.Count > 1000) Messages.RemoveAt(0);
-                });
-            }).RunAsync(first, last, cts.Token));
-            Summary = $"신규 {result.Collected} · 기존 확인 {result.Skipped} · 완료 대기 {result.Deferred} · 실패 {result.Failed} · 파싱 {result.Parsed}행 · 형식 오류 {result.InvalidRows}행";
-            Status = result.Failed + result.Deferred + result.InvalidRows == 0 ? "수집이 완료되었습니다." : "확인이 필요한 항목이 있습니다. 같은 기간을 다시 실행해 재점검할 수 있습니다.";
+                    ui.BeginInvoke(() =>
+                    {
+                        Messages.Add($"[{DateTime.Now:HH:mm:ss}] {item.MachineId}/{item.PcId} {item.Path} · {item.Message}");
+                        if (Messages.Count > 1000) Messages.RemoveAt(0);
+                    });
+                }).RunAsync(first, last, cts.Token));
+                Summary = $"새 복사본 {result.Collected} · 기존 확인 {result.Skipped} · 완료 대기 {result.Deferred} · 실패 {result.Failed} · 파싱 {result.Parsed}행 · 형식 오류 {result.InvalidRows}행";
+                Status = result.Failed + result.Deferred + result.InvalidRows == 0 ? "이번 확인 완료." : "확인이 필요한 항목이 있습니다.";
+                if (!autoRepeat) break;
+                Status += $" 다음 확인까지 {intervalMinutes}분 대기 중…";
+                await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), cts.Token);
+            } while (!cts.IsCancellationRequested);
         }
         catch (OperationCanceledException) { Status = "중단했습니다. 같은 기간으로 다시 실행하면 이어서 확인합니다."; }
         catch (Exception e) { Status = "실행 실패: " + e.Message; Messages.Add(e.ToString()); }

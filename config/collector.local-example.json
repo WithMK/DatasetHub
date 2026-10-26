@@ -1,7 +1,7 @@
 {
   "archiveRoot": "../runtime/archive",
   "databasePath": "../runtime/history.db",
-  "completionSuffix": ".done",
+  "completionSuffix": "",
   "equipments": [
     {
       "machineId": "DEMO001",

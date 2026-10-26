@@ -4,14 +4,14 @@ public sealed class CollectorOptions
 {
     public string ArchiveRoot { get; set; } = "";
     public string DatabasePath { get; set; } = "";
-    public string CompletionSuffix { get; set; } = ".done";
+    public string CompletionSuffix { get; set; } = "";
     public List<Equipment> Equipments { get; set; } = [];
 
     public void Validate(string baseDirectory)
     {
         if (string.IsNullOrWhiteSpace(ArchiveRoot) || string.IsNullOrWhiteSpace(DatabasePath))
             throw new ArgumentException("ArchiveRoot and DatabasePath are required.");
-        if (CompletionSuffix != ".done") throw new ArgumentException("This prototype supports only the .done mock completion contract.");
+        if (CompletionSuffix is not ("" or ".done")) throw new ArgumentException("CompletionSuffix must be empty or .done.");
         ArchiveRoot = Path.GetFullPath(ArchiveRoot, baseDirectory);
         DatabasePath = Path.GetFullPath(DatabasePath, baseDirectory);
         var machines = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

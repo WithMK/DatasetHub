@@ -43,20 +43,21 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                                     progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "확인 중"));
                                     try
                                     {
-                                        var hash = await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token);
-                                        if (hash != null)
+                                        var snapshot = await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token);
+                                        if (snapshot != null)
                                         {
-                                            var archive = Path.Combine(options.ArchiveRoot, machine.MachineId, pc.PcId, relative);
+                                            var hash = snapshot.Sha256;
+                                            var archive = snapshot.ArchivePath;
                                             try
                                             {
-                                                var counts = await new StandardLogParser(history).ParseAsync(machine.MachineId, pc.PcId, relative, archive, hash, token);
+                                                var counts = await new StandardLogParser(history).ParseAsync(machine.MachineId, pc.PcId, snapshot.ParseKey, archive, hash, token);
                                                 result.Parsed += counts.valid;
                                                 result.InvalidRows += counts.invalid;
                                                 progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, counts.invalid > 0 ? $"수집 완료 · 파싱 오류 {counts.invalid}행" : "수집·파싱 완료"));
                                             }
                                             catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
                                             {
-                                                history.ParseFailure(machine.MachineId, pc.PcId, relative, hash, e.Message);
+                                                history.ParseFailure(machine.MachineId, pc.PcId, snapshot.ParseKey, hash, e.Message);
                                                 result.Failed++;
                                                 progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "파싱 실패: " + e.Message));
                                                 Console.Error.WriteLine($"Parse failed {machine.MachineId}/{pc.PcId}/{relative}: {e.Message}");
@@ -93,80 +94,72 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         return result;
     }
 
-    private async Task<string?> CollectAsync(string machine, string pc, string relative, string source, History history, CollectionResult result, CancellationToken token)
+    private async Task<Snapshot?> CollectAsync(string machine, string pc, string relative, string source, History history, CollectionResult result, CancellationToken token)
     {
         RejectLink(source);
-        var marker = source + options.CompletionSuffix;
-        if (!File.Exists(marker))
+        if (options.CompletionSuffix.Length > 0)
         {
-            history.Record(machine, pc, relative, "Deferred", error: "Completion marker missing.");
-            result.Deferred++;
-            return null;
+            var marker = source + options.CompletionSuffix;
+            if (!File.Exists(marker))
+            {
+                history.Record(machine, pc, relative, "Deferred", error: "Completion marker missing.");
+                result.Deferred++;
+                return null;
+            }
+            RejectLink(marker);
         }
-        RejectLink(marker);
-        var destination = Path.Combine(options.ArchiveRoot, machine, pc, relative);
-        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-        // Reject existing links in the destination path as well.
-        for (var dir = Path.GetDirectoryName(destination); dir != null; dir = Path.GetDirectoryName(dir)) RejectLink(dir);
-        if (File.Exists(destination)) RejectLink(destination);
-        var temporary = destination + ".partial";
+        var versions = Path.Combine(options.ArchiveRoot, machine, pc, ".snapshots", relative);
+        Directory.CreateDirectory(versions);
+        for (var dir = versions; dir != null; dir = Path.GetDirectoryName(dir)) RejectLink(dir);
+        var temporary = Path.Combine(versions, "copy.partial");
         if (File.Exists(temporary)) RejectLink(temporary);
         history.Record(machine, pc, relative, "Collecting");
         try
         {
             var before = new FileInfo(source);
-            var size = before.Length;
+            long size = before.Length;
             var modified = before.LastWriteTimeUtc;
-            // Windows sharing denies writers/deleters while this handle is open.
-            await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
-            var sourceHash = Convert.ToHexString(await SHA256.HashDataAsync(input, token));
-            if (File.Exists(destination))
-            {
-                var existingHash = await HashAsync(destination, token);
-                VerifySource();
-                if (existingHash != sourceHash)
-                {
-                    history.Record(machine, pc, relative, "Conflict", error: "Existing archive differs from source; neither file overwritten.");
-                    result.Failed++;
-                    return null;
-                }
-                history.Record(machine, pc, relative, "Collected", size, sourceHash);
-                if (File.Exists(temporary)) File.Delete(temporary);
-                result.Skipped++;
-                return sourceHash;
-            }
-            input.Position = 0;
+            // Do not deny the equipment writer access. A writer may still deny our read; retry next scan.
+            await using var input = new FileStream(source, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
             await using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 131072, FileOptions.Asynchronous))
             {
                 await input.CopyToAsync(output, token);
                 await output.FlushAsync(token);
                 output.Flush(flushToDisk: true);
             }
-            if (new FileInfo(temporary).Length != size || await HashAsync(temporary, token) != sourceHash)
-                throw new IOException("Size or SHA-256 verification failed.");
-            VerifySource();
+            if (new FileInfo(temporary).Length != size) throw new IOException("Source size changed during copy; retry next scan.");
+            var hash = await HashAsync(temporary, token);
+            var after = new FileInfo(source);
+            if (after.Length != size || after.LastWriteTimeUtc != modified ||
+                (options.CompletionSuffix.Length > 0 && !File.Exists(source + options.CompletionSuffix)))
+                throw new IOException("Source changed during copy; retry next scan.");
+            // Recheck the source after the copy, even when size and timestamp stayed the same.
+            if (await HashAsync(source, token) != hash) throw new IOException("Source changed during copy; retry next scan.");
             token.ThrowIfCancellationRequested();
-            File.Move(temporary, destination, overwrite: false);
-            // A crash before this record is repaired by hashing the final file on the next scan.
-            history.Record(machine, pc, relative, "Collected", size, sourceHash);
-            result.Collected++;
-            return sourceHash;
-            void VerifySource()
+            var archive = Path.Combine(versions, hash + ".log");
+            if (File.Exists(archive))
             {
-                var after = new FileInfo(source);
-                if (!File.Exists(marker) || after.Length != size || after.LastWriteTimeUtc != modified)
-                    throw new IOException("Source changed during collection.");
+                RejectLink(archive);
+                if (await HashAsync(archive, token) != hash) throw new IOException("Stored snapshot checksum mismatch.");
+                result.Skipped++;
             }
+            else
+            {
+                File.Move(temporary, archive, overwrite: false);
+                result.Collected++;
+            }
+            history.Record(machine, pc, relative, "Collected", size, hash);
+            return new Snapshot(archive, relative + "@" + hash, hash);
         }
         finally
         {
-            // A hard process stop can leave this file; the next run safely recreates it.
             if (File.Exists(temporary)) File.Delete(temporary);
         }
     }
     private static async Task<string> HashAsync(string path, CancellationToken token)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
         return Convert.ToHexString(await SHA256.HashDataAsync(stream, token));
     }
     private static void RejectLink(string path)

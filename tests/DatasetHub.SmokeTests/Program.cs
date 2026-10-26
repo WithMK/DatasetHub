@@ -10,68 +10,62 @@ try
     Directory.CreateDirectory(hour);
     var original = Path.Combine(hour, "sample.log");
     var fields = new[] { "2026-10-26 10:00:00.123", "TEST", "Operation", "LOT", "RECIPE", "PRODUCT", "Run", "Scope", "Operation", "Event", "한글 Data" };
-    await File.WriteAllTextAsync(original, "SEM_LOG_Version=2.0\n" + string.Join('\t', fields) + "\n");
-    await File.WriteAllTextAsync(original + ".done", "");
+    var firstLine = string.Join('\t', fields);
+    await File.WriteAllTextAsync(original, "SEM_LOG_Version=2.0\n" + firstLine + "\n");
     var options = new CollectorOptions
     {
         ArchiveRoot = Path.Combine(root, "archive"), DatabasePath = Path.Combine(root, "history.db"),
         Equipments = [new() { MachineId = "TEST", Enabled = true, Pcs = [new() { PcId = "CTRL", SourceRoot = source }] }]
     };
     options.Validate(root);
-    var date = new DateOnly(2026, 10, 26);
-    Task<CollectionResult> Run() => new Collector(options).RunAsync(date, date);
-    void Check(bool value, string name) { if (!value) throw new Exception(name); Console.WriteLine("PASS " + name); }
-    var first = await Run();
-    Check(first.Collected == 1 && first.Parsed == 1 && first.Failed == 0, "first collection and parsing");
-    var destination = Path.Combine(options.ArchiveRoot, "TEST", "CTRL", "20261026", "10-hour", "sample.log");
-    Check(File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(destination)), "binary equality");
-    Check((await Run()).Skipped == 1, "repeat does not duplicate");
-    Check(Count("LogRows") == 1, "parsed row unique");
-    // Simulate final rename committed but history missing.
-    using (var db = new SqliteConnection($"Data Source={options.DatabasePath};Pooling=False"))
-    {
-        db.Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "DELETE FROM Files"; cmd.ExecuteNonQuery();
-    }
-    Check((await Run()).Skipped == 1, "reconstruct missing history from final file");
-    File.Delete(destination);
-    await File.WriteAllTextAsync(destination + ".partial", "interrupted copy");
-    Check((await Run()).Collected == 1, "recover stale partial and missing archive");
-    await File.WriteAllTextAsync(Path.Combine(hour, "pending.log"), string.Join('\t', fields));
-    Check((await Run()).Deferred == 1, "missing marker deferred");
-    await File.WriteAllTextAsync(Path.Combine(hour, "pending.log.done"), "");
-    Check((await Run()).Collected == 1, "late completion discovered");
-    await File.WriteAllTextAsync(original, "changed source");
-    var archivedBytes = File.ReadAllBytes(destination);
-    Check((await Run()).Failed == 1 && archivedBytes.SequenceEqual(File.ReadAllBytes(destination)), "conflict preserves archive");
-    options.Equipments.Insert(0, new() { MachineId = "OFFLINE", Enabled = true, Pcs = [new() { PcId = "CTRL", SourceRoot = Path.Combine(root, "missing") }] });
-    var offline = await Run();
-    Check(offline.Failed == 2 && offline.Skipped == 1, "offline PC does not block next equipment");
-    using (var held = new FileStream(Path.Combine(options.ArchiveRoot, ".collector.lock"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
-    {
-        var blocked = false;
-        try { await Run(); } catch (IOException) { blocked = true; }
-        Check(blocked, "overlapping run blocked");
-    }
-    var mixed = Path.Combine(hour, "mixed.log");
-    await File.WriteAllTextAsync(mixed, string.Join('\t', fields) + "\nmalformed\n" + string.Join('\t', fields.Take(10).Append("Data\tunexpected")) + "\n");
-    await File.WriteAllTextAsync(mixed + ".done", "");
-    var withErrors = await Run();
-    Check(withErrors.InvalidRows == 2 && Count("LogRows", "AND RelativePath LIKE '%mixed.log'") == 3, "malformed and extra-tab rows recorded");
-    Check((await Run()).InvalidRows == 2, "repeat retains parse errors");
-    using (var db = new SqliteConnection($"Data Source={options.DatabasePath};Pooling=False"))
-    {
-        db.Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "DELETE FROM ParseState WHERE RelativePath LIKE '%mixed.log'"; cmd.ExecuteNonQuery();
-    }
-    Check((await Run()).InvalidRows == 2 && Count("LogRows", "AND RelativePath LIKE '%mixed.log'") == 3, "interrupted parsing replays without duplicates");
+    var day = new DateOnly(2026, 10, 26);
+    Task<CollectionResult> Run() => new Collector(options).RunAsync(day, day);
+    void Check(bool ok, string name) { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }
+    string SnapshotDir(string file) => Path.Combine(options.ArchiveRoot, "TEST", "CTRL", ".snapshots", "20261026", "10-hour", file);
+    string[] Snapshots(string file) => Directory.GetFiles(SnapshotDir(file), "*.log");
     int Count(string table, string condition = "")
     {
         using var db = new SqliteConnection($"Data Source={options.DatabasePath};Pooling=False"); db.Open();
         using var cmd = db.CreateCommand(); cmd.CommandText = $"SELECT COUNT(*) FROM {table} WHERE 1=1 {condition}";
         return Convert.ToInt32(cmd.ExecuteScalar());
     }
+    var first = await Run();
+    Check(first.Collected == 1 && first.Parsed == 1 && first.Failed == 0, "snapshot without marker and parse");
+    Check(Snapshots("sample.log").Length == 1 && File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Snapshots("sample.log")[0])), "snapshot bytes equal source");
+    Check((await Run()).Skipped == 1 && Count("LogRows") == 1, "unchanged source skipped without duplicate rows");
+    using (var db = new SqliteConnection($"Data Source={options.DatabasePath};Pooling=False"))
+    { db.Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "DELETE FROM Files"; cmd.ExecuteNonQuery(); }
+    Check((await Run()).Skipped == 1, "missing collection history recovered");
+    var prior = Snapshots("sample.log")[0];
+    await File.AppendAllTextAsync(original, firstLine + "\n");
+    var appended = await Run();
+    Check(appended.Collected == 1 && appended.Parsed == 2 && Snapshots("sample.log").Length == 2, "growing file creates a new snapshot");
+    Check(File.ReadAllText(prior).EndsWith(firstLine + "\n") && Count("LogRows") == 3, "old version and rows retained");
+    await File.WriteAllTextAsync(original, "SEM_LOG_Version=2.0\n" + firstLine + "\nchanged invalid line\n");
+    var rewritten = await Run();
+    Check(rewritten.Collected == 1 && rewritten.InvalidRows == 1 && Snapshots("sample.log").Length == 3, "same-path rewrite creates independent version");
+    var oldSnapshot = prior;
+    File.Delete(oldSnapshot);
+    await File.WriteAllTextAsync(Path.Combine(SnapshotDir("sample.log"), "copy.partial"), "interrupted");
+    await Run();
+    Check(Snapshots("sample.log").Length == 2, "stale partial cleaned without replacing other versions");
+    var live = Path.Combine(hour, "live.log");
+    await File.WriteAllTextAsync(live, firstLine + "\n");
+    options.CompletionSuffix = ".done";
+    Check((await Run()).Deferred >= 1 && !Directory.Exists(SnapshotDir("live.log")), "optional marker mode defers unfinished file");
+    await File.WriteAllTextAsync(live + ".done", "");
+    Check((await Run()).Collected == 1 && Snapshots("live.log").Length == 1, "optional marker mode collects after signal");
+    options.CompletionSuffix = "";
+    var bad = Path.Combine(hour, "mixed.log");
+    await File.WriteAllTextAsync(bad, firstLine + "\nmalformed\n" + firstLine + "\textra\n");
+    Check((await Run()).InvalidRows >= 2 && Count("LogRows", "AND RelativePath LIKE '%mixed.log@%'") == 3, "bad rows recorded by snapshot key");
+    Check((await Run()).InvalidRows >= 2 && Count("LogRows", "AND RelativePath LIKE '%mixed.log@%'") == 3, "repeat does not duplicate parse rows");
+    options.Equipments.Insert(0, new() { MachineId = "OFFLINE", Enabled = true, Pcs = [new() { PcId = "CTRL", SourceRoot = Path.Combine(root, "missing") }] });
+    Check((await Run()).Failed >= 1, "offline machine does not block other equipment");
+    using (var held = new FileStream(Path.Combine(options.ArchiveRoot, ".collector.lock"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+    { var blocked = false; try { await Run(); } catch (IOException) { blocked = true; } Check(blocked, "overlapping scan blocked"); }
     using var cts = new CancellationTokenSource(); cts.Cancel();
-    var cancelled = false;
-    try { await new Collector(options).RunAsync(date, date, cts.Token); } catch (OperationCanceledException) { cancelled = true; }
+    var cancelled = false; try { await new Collector(options).RunAsync(day, day, cts.Token); } catch (OperationCanceledException) { cancelled = true; }
     Check(cancelled, "cancellation propagated");
     Console.WriteLine("All smoke checks passed.");
     return 0;

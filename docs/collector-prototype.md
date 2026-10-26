@@ -1,5 +1,7 @@
 # 표준 로그 수집기: 첫 구현
 
+> 갱신 로그 수집 정책은 [rolling-log.md](rolling-log.md)가 최신입니다. 아래의 `.done` 필수/기존 파일 충돌 설명은 초기 구현의 기록입니다.
+
 ## 범위와 상태
 
 C# / .NET 10 / Microsoft.Data.Sqlite 10.0.0 + SQLitePCLRaw.bundle_e_sqlite3 3.0.5 기반 수동 콘솔 프로토타입입니다.

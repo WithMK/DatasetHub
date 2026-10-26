@@ -5,7 +5,7 @@
  <Grid Margin="20">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-   <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
   <TextBlock Text="표준 로그 수집" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,16"/>
   <Grid Grid.Row="1" Margin="0,0,0,12">
@@ -22,13 +22,18 @@
    <Button Content="수집 시작" Command="{Binding StartCommand}" Margin="24,0,0,0" Padding="18,5"/>
    <Button Content="중지 요청" Command="{Binding StopCommand}" Margin="8,0,0,0" Padding="18,5"/>
   </StackPanel>
-  <Border Grid.Row="3" Background="#EEF3F8" Padding="12" Margin="0,0,0,12" CornerRadius="5">
+  <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,12">
+   <CheckBox Content="자동 반복 (오늘·이전 2일 재확인)" IsChecked="{Binding AutoRepeat}" VerticalAlignment="Center"/>
+   <TextBlock Text="주기(분)" Margin="18,0,7,0" VerticalAlignment="Center"/>
+   <TextBox Text="{Binding IntervalMinutes, UpdateSourceTrigger=PropertyChanged}" Width="60" VerticalContentAlignment="Center"/>
+  </StackPanel>
+  <Border Grid.Row="4" Background="#EEF3F8" Padding="12" Margin="0,0,0,12" CornerRadius="5">
    <StackPanel>
     <TextBlock Text="{Binding Status}" FontWeight="SemiBold" TextWrapping="Wrap"/>
     <TextBlock Text="{Binding Summary}" Margin="0,5,0,0" TextWrapping="Wrap"/>
    </StackPanel>
   </Border>
-  <ListBox Grid.Row="4" ItemsSource="{Binding Messages}" FontFamily="Consolas" FontSize="12"/>
-  <TextBlock Grid.Row="5" Text="시험용 화면 · 설비의 실제 저장 완료 규칙은 확인 전입니다. 원본에는 쓰거나 삭제하지 않습니다." Margin="0,12,0,0" Foreground="#555" TextWrapping="Wrap"/>
+  <ListBox Grid.Row="5" ItemsSource="{Binding Messages}" FontFamily="Consolas" FontSize="12"/>
+  <TextBlock Grid.Row="6" Text="시험용 화면 · 설비의 실제 저장 완료 규칙은 확인 전입니다. 원본에는 쓰거나 삭제하지 않습니다." Margin="0,12,0,0" Foreground="#555" TextWrapping="Wrap"/>
  </Grid>
 </Window>
