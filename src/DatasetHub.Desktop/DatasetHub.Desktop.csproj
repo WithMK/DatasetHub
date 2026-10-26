@@ -9,7 +9,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../DatasetHub.Collector/DatasetHub.Collector.csproj" />
-    <Content Include="../../config/collector.local-example.json" Link="config/collector.local-example.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../scripts/New-MockLogs.ps1" Link="scripts/New-MockLogs.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -10,25 +10,25 @@ Visual Studio 2026으로 빌드할 경우:
 
 1. `feat/log-collector-prototype` 브랜치를 내려받아 저장소 루트의 **`DatasetHub.sln`**을 엽니다. VS의 `.NET 데스크톱 개발` 워크로드와 .NET 10 SDK가 필요합니다.
 2. **빌드 → 솔루션 빌드**를 누릅니다. NuGet 복원에 실패하면 패키지 접근 설정을 확인합니다.
-3. 탐색기에서 **`run\Debug\DatasetHub.Desktop.exe`**를 실행합니다. Release로 빌드했다면 `run\Release\DatasetHub.Desktop.exe`입니다. DLL과 `config`, `scripts` 폴더가 옆에 있어야 하므로 EXE만 따로 이동하지 마세요.
+3. 탐색기에서 **`run\Debug\DatasetHub.Desktop.exe`**를 실행합니다. Release로 빌드했다면 `run\Release\DatasetHub.Desktop.exe`입니다. 설정은 솔루션 루트의 **`config\`**에서 읽습니다. 솔루션 폴더 이름이 `DataCollect`라면 `DataCollect\config\`입니다.
 
 실행 파일 창 제목이 `DatasetHub · 표준 로그 수집 v0.2.1`인지 확인하세요. 오래된 EXE의 `찾아보기` 종료 문제가 남아 있다면 브랜치를 업데이트하고 솔루션을 **정리 → 다시 빌드**하세요. VS를 사용한 실행 안내는 [docs/visual-studio.md](docs/visual-studio.md)에 있습니다.
 
 ## 모의 로그로 첫 수집 확인
 
-VS 빌드본은 **EXE가 들어 있는 폴더**의 PowerShell에서 아래처럼 실행합니다. ZIP 실행본도 압축을 해제한 프로그램 폴더에서 같은 명령을 사용합니다.
+VS 빌드본은 **솔루션 루트(`DataCollect`)**의 PowerShell에서 아래처럼 실행합니다. ZIP 실행본은 압축을 해제한 프로그램 폴더에서 같은 명령을 사용합니다.
 
 ```powershell
 .\scripts\New-MockLogs.ps1
-.\DatasetHub.Desktop.exe
+.\run\Debug\DatasetHub.Desktop.exe
 ```
 
-스크립트는 첫 회에만 실행합니다. 동일한 `demo.log`가 있으면 덮어쓰지 않고 종료합니다. UI에 예제 설정 경로가 자동으로 표시됩니다. 비어 있으면 **찾아보기**에서 프로그램 폴더의 `config\collector.local-example.json`을 고르세요.
+ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸세요. 스크립트는 첫 회에만 실행합니다. 동일한 `demo.log`가 있으면 덮어쓰지 않고 종료합니다. UI에는 솔루션 루트의 `config\collector.local-example.json`이 자동 표시됩니다. ZIP 실행본은 압축 해제 폴더의 `config\`를 사용합니다.
 
 1. **시작일과 종료일을 모두 `2026-10-26`**으로 선택하고 **수집 시작**을 누릅니다.
 2. 첫 실행에서 `새 복사본 1`, `파싱 1행`을 확인합니다.
 3. 다시 수집하면 `기존 확인 1`로 표시됩니다.
-4. 수집한 버전은 프로그램 폴더의 `runtime\archive`, 이력 DB는 `runtime\history.db`에 저장됩니다. `config/collector.local-example.json`의 경로는 **그 설정 파일이 있는 폴더 기준**으로 해석됩니다.
+4. 수집한 버전은 설정 폴더의 상위 폴더에 있는 `runtime\archive`, 이력 DB는 `runtime\history.db`에 저장됩니다. `config/collector.local-example.json`의 경로는 **그 설정 파일이 있는 폴더 기준**으로 해석됩니다.
 
 `찾아보기`는 앱 내부의 JSON 파일 선택 창입니다. 취소하면 기존 설정 경로를 유지합니다. 자동 반복을 켜면 **1·5·10·30·60분** 중 선택한 간격으로 오늘과 이전 2일을 다시 검사합니다. 기본 주기는 5분이고, 앱을 닫으면 반복이 멈춥니다. 주기 시간은 직전 검사 **종료 후 대기 시간**입니다. 특정 과거 날짜를 확인하려면 자동 반복을 끄고 기간을 선택하세요.
 

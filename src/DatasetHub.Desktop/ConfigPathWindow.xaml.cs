@@ -20,7 +20,7 @@ public partial class ConfigPathWindow : Window
         SelectedFilePath.Text = currentPath;
         var directory = !string.IsNullOrWhiteSpace(currentPath) ? System.IO.Path.GetDirectoryName(currentPath) : null;
         if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
-            directory = System.IO.Path.Combine(AppContext.BaseDirectory, "config");
+            directory = ConfigFileLocator.DirectoryPath;
         Navigate(Directory.Exists(directory) ? directory : AppContext.BaseDirectory);
     }
 
