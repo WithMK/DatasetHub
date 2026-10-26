@@ -1,52 +1,69 @@
 # DatasetHub
 
-트리밍 설비의 이미지·로그·검사 Metadata를 수집하고 제품별로 연결하여 AI 학습·분석용 Dataset을 구성하는 프로젝트입니다.
+설비 PC의 표준 `.log`를 중앙 PC로 가져와 버전별로 보관하고 기본 11필드를 SQLite에 등록하는 Windows 시험용 프로그램입니다. 현재는 **로그 수집 단계**이며 이미지·JSON 수집과 Dataset 생성은 아직 구현 전입니다. 개발 내용은 [PR #1](https://github.com/WithMK/DatasetHub/pull/1)의 `feat/log-collector-prototype` 브랜치에 있습니다. `main` 브랜치에는 아직 이 실행 프로그램이 없습니다.
 
-## 현재 상태
+## EXE를 바로 실행하기
 
-**표준 로그 수집기의 첫 콘솔 프로토타입을 작성했습니다. Windows CI 빌드·모의 테스트를 통과했으며 실제 설비 SMB 검증은 아직입니다.**
+Windows x64에서 [최신 시험용 ZIP 다운로드](https://github.com/WithMK/DatasetHub/actions/runs/40422042841/artifacts/12696604837)를 사용하거나, 아래의 Visual Studio 빌드 방법을 사용합니다. CI 아티팩트는 보관 기한이 있으므로 링크가 만료되면 [PR의 최신 통과한 Actions 실행](https://github.com/WithMK/DatasetHub/actions)에서 `DatasetHub-Windows-x64`를 받으세요. 다운로드한 ZIP 안의 `DatasetHub-Windows-x64.zip`을 **한 번 더 압축 해제**한 뒤 `DatasetHub.Desktop.exe`를 실행합니다. 이 ZIP은 .NET 런타임을 포함하므로 VS와 SDK 설치가 필요하지 않습니다.
 
-입력 텍스트 로그는 SEM_LOG 2.0 표준 11필드의 탭 구분 .log를 따릅니다. 검사 JSON 양식은 미정입니다. 현재 개발은 동일 경로에서 갱신되는 로그의 주기적 복사·버전별 보존·SQLite 이력과 기본 11필드 파서를 포함합니다. 실제 로그 형식 검증은 후속 단계입니다.
+Visual Studio 2026으로 빌드할 경우:
 
-## 기본 원칙
+1. `feat/log-collector-prototype` 브랜치를 내려받아 저장소 루트의 **`DatasetHub.sln`**을 엽니다. VS의 `.NET 데스크톱 개발` 워크로드와 .NET 10 SDK가 필요합니다.
+2. **빌드 → 솔루션 빌드**를 누릅니다. NuGet 복원에 실패하면 패키지 접근 설정을 확인합니다.
+3. 탐색기에서 **`run\Debug\DatasetHub.Desktop.exe`**를 실행합니다. Release로 빌드했다면 `run\Release\DatasetHub.Desktop.exe`입니다. DLL과 `config`, `scripts` 폴더가 옆에 있어야 하므로 EXE만 따로 이동하지 마세요.
 
-- 설비 동작 영향 최소화와 누락 복구를 실시간성보다 우선합니다.
-- 설비의 C(OS·프로그램)와 D(데이터)는 서로 다른 물리 저장장치입니다.
-- 서버가 D의 공유폴더에서 저장 완료 자료를 PULL합니다.
-- 날짜·시간별 폴더를 대조하며 원본과 수집 이력을 보존합니다.
-- 설비 수는 설정 목록으로 관리합니다. 초기 9대/27PC는 예시이며 고정 상한이 아닙니다.
-- 이미지는 파일로 저장하고 SQLite에는 이력·경로·제품 관계·측정값을 기록합니다.
-- 생산 PC 원본 삭제는 초기 구현 범위에서 제외합니다.
+실행 파일 창 제목이 `DatasetHub · 표준 로그 수집 v0.2.1`인지 확인하세요. 오래된 EXE의 `찾아보기` 종료 문제가 남아 있다면 브랜치를 업데이트하고 솔루션을 **정리 → 다시 빌드**하세요. VS를 사용한 실행 안내는 [docs/visual-studio.md](docs/visual-studio.md)에 있습니다.
 
-## 구성
+## 모의 로그로 첫 수집 확인
 
-| 경로 | 내용 |
-|---|---|
-| [docs/system-design.md](docs/system-design.md) | 전체 설계 v0.3 |
-| [docs/phase1-scope.md](docs/phase1-scope.md) | 1차 구현 범위·검수 기준 |
-| [docs/standard-log-input.md](docs/standard-log-input.md) | 입력 표준 로그 계약·파서 범위 |
-| [docs/decisions.md](docs/decisions.md) | 확정 사항·미정 항목 |
-| [config/collector.example.json](config/collector.example.json) | 비밀정보 없는 제안 설정 |
-| src/ | C# 수집기 프로토타입 |
-| tests/ | 모의 폴더 통합 검증 코드 |
-| scripts/ | 모의 로그 생성 스크립트 |
+VS 빌드본은 **EXE가 들어 있는 폴더**의 PowerShell에서 아래처럼 실행합니다. ZIP 실행본도 압축을 해제한 프로그램 폴더에서 같은 명령을 사용합니다.
 
-[표준 로그 파서 범위](docs/parser-prototype.md)도 참고하세요.
+```powershell
+.\scripts\New-MockLogs.ps1
+.\DatasetHub.Desktop.exe
+```
 
-[임시 WPF 화면 사용법](docs/desktop-prototype.md)을 추가했습니다.
+스크립트는 첫 회에만 실행합니다. 동일한 `demo.log`가 있으면 덮어쓰지 않고 종료합니다. UI에 예제 설정 경로가 자동으로 표시됩니다. 비어 있으면 **찾아보기**에서 프로그램 폴더의 `config\collector.local-example.json`을 고르세요.
 
-[SDK 없이 시험하는 Windows ZIP 안내](docs/windows-bundle.md)가 있습니다. PR의 Windows CI가 완료되면 실행 결과에서 ZIP을 받을 수 있습니다.
+1. **시작일과 종료일을 모두 `2026-10-26`**으로 선택하고 **수집 시작**을 누릅니다.
+2. 첫 실행에서 `새 복사본 1`, `파싱 1행`을 확인합니다.
+3. 다시 수집하면 `기존 확인 1`로 표시됩니다.
+4. 수집한 버전은 프로그램 폴더의 `runtime\archive`, 이력 DB는 `runtime\history.db`에 저장됩니다. `config/collector.local-example.json`의 경로는 **그 설정 파일이 있는 폴더 기준**으로 해석됩니다.
 
-Visual Studio 2026은 저장소 루트의 [`DatasetHub.sln`](DatasetHub.sln)을 여세요. 빌드 후 `run/Debug/DatasetHub.Desktop.exe`를 바로 실행할 수 있습니다. [VS 실행 안내](docs/visual-studio.md)를 참고하세요.
+`찾아보기`는 앱 내부의 JSON 파일 선택 창입니다. 취소하면 기존 설정 경로를 유지합니다. 자동 반복을 켜면 **1·5·10·30·60분** 중 선택한 간격으로 오늘과 이전 2일을 다시 검사합니다. 기본 주기는 5분이고, 앱을 닫으면 반복이 멈춥니다. 주기 시간은 직전 검사 **종료 후 대기 시간**입니다. 특정 과거 날짜를 확인하려면 자동 반복을 끄고 기간을 선택하세요.
 
-[계속 갱신되는 로그 수집 규칙](docs/rolling-log.md)을 먼저 확인하세요.
+## 다른 설비 PC의 로그 경로 등록
 
-Visual Studio 저장 후 솔루션이 수정됨으로 보이면 [솔루션 Git 상태 안내](docs/solution-git-status.md)를 확인하세요.
+예제 설정을 `config\collector.local.json`으로 복사하고 PC별 `sourceRoot`를 서버에서 접근할 수 있는 SMB 공유 경로로 바꿉니다. 예를 들어 설비 PC의 `D:\Log\Standard`를 `StandardLog`로 공유했다면 JSON에는 다음처럼 입력합니다. UI에서 이 새 설정 파일을 선택하세요.
 
-## 시작 방법
+```json
+{
+  "archiveRoot": "E:\\DatasetHub\\Raw",
+  "databasePath": "C:\\DatasetHub\\Db\\history.db",
+  "completionSuffix": "",
+  "equipments": [
+    {
+      "machineId": "TRIM001",
+      "enabled": true,
+      "pcs": [
+        { "pcId": "CTRL", "sourceRoot": "\\\\192.168.10.101\\StandardLog" }
+      ]
+    }
+  ]
+}
+```
 
-[첫 수집기 실행·검증 안내](docs/collector-prototype.md)를 참고하세요.
-.NET 10 SDK에서 실행하며, 모의 완료 마커가 있는 로컬 로그로 먼저 검증합니다.
-`config/collector.local-example.json`이 실행 설정이며 기존 `collector.example.json`은 전체 시스템 설계안입니다.
+`sourceRoot` 아래에서 `yyyyMMdd\<시간폴더>\*.log`를 찾습니다. 설비 대수는 설정 목록으로 늘릴 수 있습니다. 서버 PC 탐색기에서 공유 경로를 먼저 열어 읽기 권한을 확인하세요. UI는 현재 설정 파일을 **선택**하지만 설비 목록을 화면에서 편집·저장하지는 않습니다.
 
-실제 원본 이미지·생산 로그·운영 DB·접속 자격증명은 Git에 넣지 않습니다.
+기본 `completionSuffix`는 빈 문자열이며 `.done` 파일이 없어도 현재 보이는 로그를 복사합니다. 같은 경로의 로그가 나중에 바뀌면 이전 복사본을 보존하고 새 버전을 만듭니다. 복사본은 **그 시점의 관측 결과**이며 최종 완료를 뜻하지 않습니다. 1분 주기는 로그 전체를 자주 읽으므로 실제 설비 부하를 측정해야 합니다. 오래된 스냅샷 자동 정리, Windows 서비스 실행, 실제 설비 SMB/로그 인코딩 검증은 아직 완료되지 않았습니다. 자세한 동작은 [갱신 로그 수집 규칙](docs/rolling-log.md)에 있습니다.
+
+## 개발 문서
+
+- [시스템 전체 설계](docs/system-design.md)
+- [표준 로그 입력 계약](docs/standard-log-input.md)
+- [수집기 구현 및 검증 범위](docs/collector-prototype.md)
+- [기본 파서 범위](docs/parser-prototype.md)
+- [Windows ZIP 사용법](docs/windows-bundle.md)
+- [솔루션의 Git 수정 표시 처리](docs/solution-git-status.md)
+
+실제 생산 로그·이미지·운영 DB·접속 자격증명은 이 공개 Git 저장소에 올리지 않습니다.
