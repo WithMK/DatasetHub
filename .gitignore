@@ -2,6 +2,10 @@
 **/bin/
 **/obj/
 .vs/
+# Editor-generated local solution files; DatasetHub.sln itself is tracked.
+*.sln.docstates
+*.sln.ide.bak
+*.slnx.ide.bak
 .idea/
 *.user
 *.suo

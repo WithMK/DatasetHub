@@ -41,6 +41,8 @@ Visual Studio 2026은 저장소 루트의 [`DatasetHub.sln`](DatasetHub.sln)을 
 
 [계속 갱신되는 로그 수집 규칙](docs/rolling-log.md)을 먼저 확인하세요.
 
+Visual Studio 저장 후 솔루션이 수정됨으로 보이면 [솔루션 Git 상태 안내](docs/solution-git-status.md)를 확인하세요.
+
 ## 시작 방법
 
 [첫 수집기 실행·검증 안내](docs/collector-prototype.md)를 참고하세요.
