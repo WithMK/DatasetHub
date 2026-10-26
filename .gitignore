@@ -15,6 +15,7 @@ coverage/
 /datasets/
 /exports/
 /artifacts/
+/run/
 *.db
 *.db-wal
 *.db-shm

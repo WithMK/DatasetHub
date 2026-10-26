@@ -10,4 +10,6 @@ Windows 10/11 x64의 **Visual Studio 2026**에서 `.NET 데스크톱 개발` 워
 
 프로젝트 역할: `DatasetHub.Desktop` = 임시 WPF 화면, `DatasetHub.Collector` = 수집/파싱 및 CLI, `DatasetHub.SmokeTests` = 수집·복구 검증 콘솔. 테스트를 다시 돌리려면 SmokeTests를 시작 프로젝트로 선택해 실행할 수 있습니다. 테스트는 OS 임시 폴더의 합성 데이터를 쓰고 완료 시 삭제합니다.
 
-빌드 결과는 각 프로젝트의 `bin/Debug/net10.0-windows/`(Desktop)와 `bin/Debug/net10.0/`(Collector) 아래에 있습니다. 다른 PC에 실행 파일만 옮길 때는 파일 하나만 복사하지 말고 전체 출력 폴더 또는 CI의 자체 포함 Windows ZIP을 사용하세요.
+빌드하면 실행에 필요한 WPF 출력이 저장소 루트의 **`run/Debug/` 또는 `run/Release/`**에 모입니다. `run/Debug/DatasetHub.Desktop.exe`를 탐색기에서 바로 실행할 수 있습니다. 예제 설정과 모의 로그 생성 스크립트도 각각 `config/`, `scripts/` 하위에 복사됩니다. 데이터는 선택된 설정 파일의 경로를 기준으로 `runtime/`에 작성됩니다.
+
+**다른 PC로 옮길 때는 EXE 하나만 복사하지 말고 출력 폴더 전체를 복사**하세요. VS 개발 PC 밖에서는 해당 .NET Desktop Runtime이 필요합니다. 런타임 설치 없이 쓰려면 CI의 자체 포함 Windows ZIP을 사용합니다. 빌드 폴더 `run/`은 Git에 등록되지 않습니다.

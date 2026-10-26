@@ -3,6 +3,13 @@
     <OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF><EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputPath>$(MSBuildProjectDirectory)/../../run/$(Configuration)/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
-  <ItemGroup><ProjectReference Include="../DatasetHub.Collector/DatasetHub.Collector.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DatasetHub.Collector/DatasetHub.Collector.csproj" />
+    <Content Include="../../config/collector.local-example.json" Link="config/collector.local-example.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/New-MockLogs.ps1" Link="scripts/New-MockLogs.ps1" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

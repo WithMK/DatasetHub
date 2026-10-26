@@ -13,6 +13,12 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - run: dotnet build DatasetHub.sln --configuration Release
+      - shell: pwsh
+        run: |
+          $folder = Join-Path $PWD 'run/Release'
+          foreach ($item in @('DatasetHub.Desktop.exe', 'DatasetHub.Collector.dll', 'config/collector.local-example.json', 'scripts/New-MockLogs.ps1')) {
+            if (!(Test-Path (Join-Path $folder $item))) { throw "Build output missing: $item" }
+          }
       - run: dotnet run --project tests/DatasetHub.DesktopTests --configuration Release
       - run: dotnet run --project tests/DatasetHub.SmokeTests --configuration Release
       - shell: pwsh

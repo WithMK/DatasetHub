@@ -37,7 +37,7 @@
 
 [SDK 없이 시험하는 Windows ZIP 안내](docs/windows-bundle.md)가 있습니다. PR의 Windows CI가 완료되면 실행 결과에서 ZIP을 받을 수 있습니다.
 
-Visual Studio 2026은 저장소 루트의 [`DatasetHub.sln`](DatasetHub.sln)을 여세요. [VS 실행 안내](docs/visual-studio.md)를 참고하세요.
+Visual Studio 2026은 저장소 루트의 [`DatasetHub.sln`](DatasetHub.sln)을 여세요. 빌드 후 `run/Debug/DatasetHub.Desktop.exe`를 바로 실행할 수 있습니다. [VS 실행 안내](docs/visual-studio.md)를 참고하세요.
 
 [계속 갱신되는 로그 수집 규칙](docs/rolling-log.md)을 먼저 확인하세요.
 
