@@ -2,11 +2,12 @@
 
 ## 범위와 상태
 
-C# / .NET 10 / Microsoft.Data.Sqlite 10.0.0 기반 수동 콘솔 프로토타입입니다.
+C# / .NET 10 / Microsoft.Data.Sqlite 10.0.0 + SQLitePCLRaw.bundle_e_sqlite3 3.0.5 기반 수동 콘솔 프로토타입입니다.
 설비 수·PC 수는 설정 목록으로 결정합니다. 이번 버전은 모든 PC를 순차 처리합니다.
 Worker Service, 예약, UI, 속도 제한, 로그 내용 파싱, 이미지·JSON, Dataset 생성은 아직 구현하지 않았습니다.
-소스 검토 및 테스트 코드 작성 단계이며, 작성 환경에 .NET SDK가 없어 로컬 빌드·실행은 검증하지 못했습니다.
-Windows CI 결과와 실제 SMB 시험을 확인하기 전에는 운영 적용하지 않습니다.
+Windows CI에서 Release 빌드(경고/오류 0), 모의 테스트 11개, PowerShell 모의 로그 생성 및 CLI 2회 실행을 통과했습니다.
+[검증 실행 기록](https://github.com/WithMK/DatasetHub/actions/runs/40284942891), 코드 커밋 `167f65a`.
+작성 환경에는 .NET SDK가 없어 GitHub Windows 실행 환경을 사용했습니다. 실제 SMB 시험은 아직입니다.
 
 ## 시작
 
