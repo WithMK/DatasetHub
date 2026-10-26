@@ -19,7 +19,7 @@ try
     options.Validate(Path.GetDirectoryName(configPath)!);
     var result = await new Collector(options).RunAsync(from, to, cancellation.Token);
     Console.WriteLine(JsonSerializer.Serialize(result));
-    return result.Failed + result.Deferred == 0 ? 0 : 1;
+    return result.Failed + result.Deferred + result.InvalidRows == 0 ? 0 : 1;
 }
 catch (OperationCanceledException) { Console.Error.WriteLine("Cancelled; rerun the same date range to recover."); return 130; }
 catch (Exception e) { Console.Error.WriteLine(e.Message); return 2; }

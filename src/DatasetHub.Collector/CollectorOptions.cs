@@ -56,4 +56,6 @@ public sealed class CollectionResult
     public int Skipped { get; set; }
     public int Deferred { get; set; }
     public int Failed { get; set; }
+    public int Parsed { get; set; }
+    public int InvalidRows { get; set; }
 }

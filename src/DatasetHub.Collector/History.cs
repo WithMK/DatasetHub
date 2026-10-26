@@ -17,6 +17,17 @@ internal sealed class History : IDisposable
               Status TEXT NOT NULL, Size INTEGER, Sha256 TEXT, Error TEXT,
               Attempts INTEGER NOT NULL DEFAULT 1, UpdatedUtc TEXT NOT NULL,
               PRIMARY KEY (MachineId, PcId, RelativePath));
+            CREATE TABLE IF NOT EXISTS LogRows (
+              MachineId TEXT NOT NULL, PcId TEXT NOT NULL, RelativePath TEXT NOT NULL,
+              LineNumber INTEGER NOT NULL, EventTime TEXT, LogMachineId TEXT, LogType TEXT,
+              LotId TEXT, Recipe TEXT, ProductId TEXT, Status TEXT, Scope TEXT,
+              OperationName TEXT, OperationStatus TEXT, Data TEXT, ParseError TEXT,
+              PRIMARY KEY (MachineId,PcId,RelativePath,LineNumber));
+            CREATE TABLE IF NOT EXISTS ParseState (
+              MachineId TEXT NOT NULL, PcId TEXT NOT NULL, RelativePath TEXT NOT NULL,
+              Sha256 TEXT NOT NULL, Status TEXT NOT NULL, LastLine INTEGER NOT NULL,
+              Error TEXT, UpdatedUtc TEXT NOT NULL,
+              PRIMARY KEY (MachineId,PcId,RelativePath));
             CREATE TABLE IF NOT EXISTS ScanErrors (
               Id INTEGER PRIMARY KEY, MachineId TEXT NOT NULL, PcId TEXT NOT NULL,
               Path TEXT NOT NULL, Error TEXT NOT NULL, UpdatedUtc TEXT NOT NULL);
@@ -53,6 +64,83 @@ internal sealed class History : IDisposable
         command.Parameters.AddWithValue("$e", error);
         command.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("O"));
         command.ExecuteNonQuery();
+    }
+    public (bool complete, int invalid) ParsedStatus(string machine, string pc, string relative, string hash)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT (SELECT COUNT(*) FROM ParseState WHERE MachineId=$m AND PcId=$p AND RelativePath=$r AND Sha256=$h AND Status='Complete'),
+                   (SELECT COUNT(*) FROM LogRows WHERE MachineId=$m AND PcId=$p AND RelativePath=$r AND ParseError IS NOT NULL);
+            """;
+        AddKey(cmd, machine, pc, relative);
+        cmd.Parameters.AddWithValue("$h", hash);
+        using var reader = cmd.ExecuteReader(); reader.Read(); return (reader.GetInt32(0) > 0, reader.GetInt32(1));
+    }
+    public void CommitRows(string machine, string pc, string relative, string hash, IReadOnlyList<ParsedRow> rows, long lastLine, bool complete)
+    {
+        using var tx = connection.BeginTransaction();
+        foreach (var row in rows)
+        {
+            using var cmd = connection.CreateCommand(); cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO LogRows VALUES ($m,$p,$r,$line,$time,$machine,$type,$lot,$recipe,$product,$status,$scope,$operation,$opstatus,$data,$error)
+                ON CONFLICT(MachineId,PcId,RelativePath,LineNumber) DO UPDATE SET
+                  EventTime=excluded.EventTime, LogMachineId=excluded.LogMachineId, LogType=excluded.LogType,
+                  LotId=excluded.LotId, Recipe=excluded.Recipe, ProductId=excluded.ProductId, Status=excluded.Status,
+                  Scope=excluded.Scope, OperationName=excluded.OperationName, OperationStatus=excluded.OperationStatus,
+                  Data=excluded.Data, ParseError=excluded.ParseError;
+                """;
+            AddKey(cmd, machine, pc, relative);
+            cmd.Parameters.AddWithValue("$line", row.Line);
+            cmd.Parameters.AddWithValue("$time", (object?)row.EventTime ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$machine", (object?)row.Fields?[1] ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$type", (object?)row.Fields?[2] ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$lot", (object?)row.Fields?[3] ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$recipe", (object?)row.Fields?[4] ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$product", (object?)row.Fields?[5] ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$status", (object?)row.Fields?[6] ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$scope", (object?)row.Fields?[7] ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$operation", (object?)row.Fields?[8] ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$opstatus", (object?)row.Fields?[9] ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$data", (object?)row.Fields?[10] ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$error", (object?)row.Error ?? DBNull.Value);
+            cmd.ExecuteNonQuery();
+        }
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO ParseState VALUES ($m,$p,$r,$h,$s,$line,NULL,$t)
+                ON CONFLICT(MachineId,PcId,RelativePath) DO UPDATE SET
+                  Sha256=excluded.Sha256,Status=excluded.Status,LastLine=excluded.LastLine,
+                  Error=NULL,UpdatedUtc=excluded.UpdatedUtc;
+                """;
+            AddKey(cmd, machine, pc, relative);
+            cmd.Parameters.AddWithValue("$h", hash);
+            cmd.Parameters.AddWithValue("$s", complete ? "Complete" : "Processing");
+            cmd.Parameters.AddWithValue("$line", lastLine);
+            cmd.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("O"));
+            cmd.ExecuteNonQuery();
+        }
+        tx.Commit();
+    }
+    public void ParseFailure(string machine, string pc, string relative, string hash, string error)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO ParseState VALUES ($m,$p,$r,$h,'Failed',0,$e,$t)
+            ON CONFLICT(MachineId,PcId,RelativePath) DO UPDATE SET
+              Status='Failed',Error=excluded.Error,UpdatedUtc=excluded.UpdatedUtc;
+            """;
+        AddKey(cmd, machine, pc, relative);
+        cmd.Parameters.AddWithValue("$h", hash);
+        cmd.Parameters.AddWithValue("$e", error);
+        cmd.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("O"));
+        cmd.ExecuteNonQuery();
+    }
+    private static void AddKey(SqliteCommand cmd, string machine, string pc, string relative)
+    {
+        cmd.Parameters.AddWithValue("$m", machine); cmd.Parameters.AddWithValue("$p", pc); cmd.Parameters.AddWithValue("$r", relative);
     }
     public void Dispose() => connection.Dispose();
 }

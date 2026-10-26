@@ -38,8 +38,27 @@ public sealed class Collector(CollectorOptions options)
                                 {
                                     token.ThrowIfCancellationRequested();
                                     var relative = Path.GetRelativePath(pc.SourceRoot, file);
-                                    try { await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token); }
-                                    catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                                    try
+                                    {
+                                        var hash = await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token);
+                                        if (hash != null)
+                                        {
+                                            var archive = Path.Combine(options.ArchiveRoot, machine.MachineId, pc.PcId, relative);
+                                            try
+                                            {
+                                                var counts = await new StandardLogParser(history).ParseAsync(machine.MachineId, pc.PcId, relative, archive, hash, token);
+                                                result.Parsed += counts.valid;
+                                                result.InvalidRows += counts.invalid;
+                                            }
+                                            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+                                            {
+                                                history.ParseFailure(machine.MachineId, pc.PcId, relative, hash, e.Message);
+                                                result.Failed++;
+                                                Console.Error.WriteLine($"Parse failed {machine.MachineId}/{pc.PcId}/{relative}: {e.Message}");
+                                            }
+                                        }
+                                    }
+                                    catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
                                     {
                                         history.Record(machine.MachineId, pc.PcId, relative, "Failed", error: e.Message);
                                         result.Failed++;
@@ -67,7 +86,7 @@ public sealed class Collector(CollectorOptions options)
         return result;
     }
 
-    private async Task CollectAsync(string machine, string pc, string relative, string source, History history, CollectionResult result, CancellationToken token)
+    private async Task<string?> CollectAsync(string machine, string pc, string relative, string source, History history, CollectionResult result, CancellationToken token)
     {
         RejectLink(source);
         var marker = source + options.CompletionSuffix;
@@ -75,7 +94,7 @@ public sealed class Collector(CollectorOptions options)
         {
             history.Record(machine, pc, relative, "Deferred", error: "Completion marker missing.");
             result.Deferred++;
-            return;
+            return null;
         }
         RejectLink(marker);
         var destination = Path.Combine(options.ArchiveRoot, machine, pc, relative);
@@ -102,12 +121,12 @@ public sealed class Collector(CollectorOptions options)
                 {
                     history.Record(machine, pc, relative, "Conflict", error: "Existing archive differs from source; neither file overwritten.");
                     result.Failed++;
-                    return;
+                    return null;
                 }
                 history.Record(machine, pc, relative, "Collected", size, sourceHash);
                 if (File.Exists(temporary)) File.Delete(temporary);
                 result.Skipped++;
-                return;
+                return sourceHash;
             }
             input.Position = 0;
             await using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 131072, FileOptions.Asynchronous))
@@ -124,6 +143,7 @@ public sealed class Collector(CollectorOptions options)
             // A crash before this record is repaired by hashing the final file on the next scan.
             history.Record(machine, pc, relative, "Collected", size, sourceHash);
             result.Collected++;
+            return sourceHash;
             void VerifySource()
             {
                 var after = new FileInfo(source);

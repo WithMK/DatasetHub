@@ -4,7 +4,7 @@
 
 C# / .NET 10 / Microsoft.Data.Sqlite 10.0.0 + SQLitePCLRaw.bundle_e_sqlite3 3.0.5 기반 수동 콘솔 프로토타입입니다.
 설비 수·PC 수는 설정 목록으로 결정합니다. 이번 버전은 모든 PC를 순차 처리합니다.
-Worker Service, 예약, UI, 속도 제한, 로그 내용 파싱, 이미지·JSON, Dataset 생성은 아직 구현하지 않았습니다.
+Worker Service, 예약, UI, 속도 제한, 표준 로그 기본 파싱을 추가했습니다. 이미지·JSON, Dataset 생성은 아직 구현하지 않았습니다.
 Windows CI에서 Release 빌드(경고/오류 0), 모의 테스트 11개, PowerShell 모의 로그 생성 및 CLI 2회 실행을 통과했습니다.
 [검증 실행 기록](https://github.com/WithMK/DatasetHub/actions/runs/40284942891), 코드 커밋 `167f65a`.
 작성 환경에는 .NET SDK가 없어 GitHub Windows 실행 환경을 사용했습니다. 실제 SMB 시험은 아직입니다.
@@ -39,7 +39,7 @@ dotnet run --project tests/DatasetHub.SmokeTests --configuration Release
 - 동일 경로의 해시가 달라지면 Conflict, 기존 수집본은 유지합니다. 원본 변경인지 수집본 손상인지는 자동 판단하지 않습니다.
 - DB의 Attempts는 해당 파일 상태를 기록한 횟수이며, 전송 시도 횟수와 동일하지 않습니다.
 - 파일/폴더 접근 오류는 기록하고 다음 항목으로 넘어갑니다. DB 자체 오류는 실행을 중단합니다.
-- 재분석 가능한 원본 바이트를 그대로 보존합니다. 인코딩 변환과 표준 11필드 해석은 수행하지 않습니다.
+- 원본 바이트는 그대로 보존하고, [기본 11필드 파서](parser-prototype.md)가 별도 테이블에 해석 결과를 등록합니다.
 
 ## 운영 제약
 
