@@ -33,6 +33,8 @@
 
 [표준 로그 파서 범위](docs/parser-prototype.md)도 참고하세요.
 
+[임시 WPF 화면 사용법](docs/desktop-prototype.md)을 추가했습니다.
+
 ## 시작 방법
 
 [첫 수집기 실행·검증 안내](docs/collector-prototype.md)를 참고하세요.

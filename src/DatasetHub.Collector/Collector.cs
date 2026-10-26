@@ -1,8 +1,10 @@
-using System.Globalization;
-using System.Security.Cryptography;
 namespace DatasetHub;
 
-public sealed class Collector(CollectorOptions options)
+public sealed record CollectionProgress(string MachineId, string PcId, string Path, string Message);
+using System.Globalization;
+using System.Security.Cryptography;
+
+public sealed class Collector(CollectorOptions options, Action<CollectionProgress>? progress = null)
 {
     public async Task<CollectionResult> RunAsync(DateOnly from, DateOnly to, CancellationToken token = default)
     {
@@ -38,6 +40,7 @@ public sealed class Collector(CollectorOptions options)
                                 {
                                     token.ThrowIfCancellationRequested();
                                     var relative = Path.GetRelativePath(pc.SourceRoot, file);
+                                    progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "확인 중"));
                                     try
                                     {
                                         var hash = await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token);
@@ -49,11 +52,13 @@ public sealed class Collector(CollectorOptions options)
                                                 var counts = await new StandardLogParser(history).ParseAsync(machine.MachineId, pc.PcId, relative, archive, hash, token);
                                                 result.Parsed += counts.valid;
                                                 result.InvalidRows += counts.invalid;
+                                                progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, counts.invalid > 0 ? $"수집 완료 · 파싱 오류 {counts.invalid}행" : "수집·파싱 완료"));
                                             }
                                             catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
                                             {
                                                 history.ParseFailure(machine.MachineId, pc.PcId, relative, hash, e.Message);
                                                 result.Failed++;
+                                                progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "파싱 실패: " + e.Message));
                                                 Console.Error.WriteLine($"Parse failed {machine.MachineId}/{pc.PcId}/{relative}: {e.Message}");
                                             }
                                         }
@@ -62,6 +67,7 @@ public sealed class Collector(CollectorOptions options)
                                     {
                                         history.Record(machine.MachineId, pc.PcId, relative, "Failed", error: e.Message);
                                         result.Failed++;
+                                        progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "수집 실패: " + e.Message));
                                         Console.Error.WriteLine($"{machine.MachineId}/{pc.PcId}/{relative}: {e.Message}");
                                     }
                                 }
@@ -80,6 +86,7 @@ public sealed class Collector(CollectorOptions options)
             {
                 history.ScanError(machine.MachineId, pc.PcId, path, e.Message);
                 result.Failed++;
+                progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, path, "폴더 접근 실패: " + e.Message));
                 Console.Error.WriteLine($"Scan failed {path}: {e.Message}");
             }
         }
