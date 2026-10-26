@@ -39,8 +39,17 @@
           "dataKinds": [
             "ControlLog"
           ],
-          "shareRoot": "\\\\CONTROL-PC-EXAMPLE\\ProductionData",
-          "completionProfile": "to-be-defined"
+          "shareRoot": "\\\\CONTROL-PC-EXAMPLE\\StandardLog",
+          "completionProfile": "to-be-defined",
+          "sourceLocalRootExample": "D:\\Log\\Standard",
+          "directoryLayout": {
+            "levels": [
+              "day",
+              "hour"
+            ],
+            "dayFormat": "yyyyMMdd",
+            "hourFolderFormat": null
+          }
         },
         {
           "pcId": "VISION01",
