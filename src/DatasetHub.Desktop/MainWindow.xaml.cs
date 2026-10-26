@@ -1,5 +1,4 @@
 using System.Windows;
-using Microsoft.Win32;
 namespace DatasetHub.Desktop;
 public partial class MainWindow : Window
 {
@@ -7,8 +6,12 @@ public partial class MainWindow : Window
     public MainWindow() { InitializeComponent(); DataContext = viewModel; }
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Filter = "JSON 설정 (*.json)|*.json|모든 파일 (*.*)|*.*" };
-        if (dialog.ShowDialog(this) == true) viewModel.ConfigPath = dialog.FileName;
+        try { ConfigFilePicker.Select(new ConfigFileDialog(), path => viewModel.ConfigPath = path); }
+        catch (Exception ex)
+        {
+            // A native file-dialog failure must not terminate the collection window.
+            viewModel.ShowBrowseError(ex);
+        }
     }
     protected override void OnClosed(EventArgs e) { viewModel.RequestStop(); base.OnClosed(e); }
 }

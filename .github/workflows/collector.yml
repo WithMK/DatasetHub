@@ -13,6 +13,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - run: dotnet build DatasetHub.sln --configuration Release
+      - run: dotnet run --project tests/DatasetHub.DesktopTests --configuration Release
       - run: dotnet run --project tests/DatasetHub.SmokeTests --configuration Release
       - shell: pwsh
         run: |

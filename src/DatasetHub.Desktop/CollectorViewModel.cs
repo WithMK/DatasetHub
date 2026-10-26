@@ -43,6 +43,11 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
         start = new RelayCommand(() => _ = RunAsync(), () => running == null);
         stop = new RelayCommand(RequestStop, () => running != null);
     }
+    public void ShowBrowseError(Exception error)
+    {
+        Status = "파일 선택 창 오류: " + error.Message;
+        Messages.Add(error.ToString());
+    }
     public void RequestStop()
     {
         if (running == null) return;
