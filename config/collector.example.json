@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "0.1-proposed",
+  "scheduling": {
+    "mode": "manual",
+    "dailyTimeLocal": null,
+    "timeZone": "Asia/Seoul"
+  },
+  "collection": {
+    "maxConcurrentEquipments": 1,
+    "maxTransfersPerPc": 1,
+    "totalLimitMBps": 15,
+    "perPcLimitMBps": 3,
+    "sourceReadOnly": true,
+    "requireCompletionSignal": true,
+    "sourceDeletionEnabled": false
+  },
+  "storage": {
+    "databasePath": "C:\\DatasetHub\\Db\\main.db",
+    "roots": [
+      {
+        "id": "raw-01",
+        "path": "E:\\DatasetHub\\Raw",
+        "minimumFreePercent": 20
+      }
+    ]
+  },
+  "retention": {
+    "automaticDeletionEnabled": false,
+    "generalImageDays": 30
+  },
+  "equipments": [
+    {
+      "machineId": "TRIM_DEMO_001",
+      "displayName": "모의 트리밍기 1",
+      "enabled": false,
+      "pcs": [
+        {
+          "pcId": "CTRL01",
+          "dataKinds": [
+            "ControlLog"
+          ],
+          "shareRoot": "\\\\CONTROL-PC-EXAMPLE\\ProductionData",
+          "completionProfile": "to-be-defined"
+        },
+        {
+          "pcId": "VISION01",
+          "dataKinds": [],
+          "shareRoot": "\\\\VISION-PC-1-EXAMPLE\\ProductionData",
+          "completionProfile": "to-be-defined"
+        },
+        {
+          "pcId": "VISION02",
+          "dataKinds": [],
+          "shareRoot": "\\\\VISION-PC-2-EXAMPLE\\ProductionData",
+          "completionProfile": "to-be-defined"
+        }
+      ]
+    }
+  ]
+}

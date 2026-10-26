@@ -1,0 +1,33 @@
+# Build and IDE
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+TestResults/
+coverage/
+
+# Runtime data and databases
+/runtime/
+/data/
+/raw/
+/datasets/
+/exports/
+/artifacts/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+*.partial
+
+# Local configuration and credentials
+config/*.local.json
+config/production*.json
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
