@@ -11,8 +11,16 @@ namespace DatasetHub.Desktop;
 
 public sealed class CollectorViewModel : INotifyPropertyChanged
 {
-    private string configPath = File.Exists(Path.Combine(AppContext.BaseDirectory, "config", "collector.local-example.json"))
-        ? Path.Combine(AppContext.BaseDirectory, "config", "collector.local-example.json") : "";
+    private string configPath = FindExampleConfig();
+    private static string FindExampleConfig()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory != null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, "config", "collector.local-example.json");
+            if (File.Exists(candidate)) return candidate;
+        }
+        return "";
+    }
     private DateTime? fromDate = DateTime.Today;
     private DateTime? toDate = DateTime.Today;
     private string status = "설정 파일과 기간을 확인하세요.";
