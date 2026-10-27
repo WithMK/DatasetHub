@@ -38,7 +38,7 @@ ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸
 
 ```json
 {
-  "archiveRoot": "E:\\DatasetHub\\Raw",
+  "destinationRoot": "E:\\DatasetHub\\Raw",
   "databasePath": "C:\\DatasetHub\\Db\\history.db",
   "completionSuffix": "",
   "equipments": [
@@ -52,6 +52,8 @@ ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸
   ]
 }
 ```
+
+`destinationRoot`는 복사본을 보관할 서버 PC의 기본 폴더입니다. 이전 설정의 `archiveRoot`도 지원합니다. 두 항목을 함께 쓰면 같은 경로여야 합니다. 실행하면 화면의 메시지에 적용된 저장 경로가 표시됩니다.
 
 `sourceRoot`는 로그 기본 폴더입니다. 설비 PC에서는 `D:\Log`를 지정하고, 중앙 서버에서는 이를 공유한 경로(예: `\\192.168.10.101\Log`)를 지정합니다. 그 아래 `yyyyMMdd\*.log`를 찾습니다. 예: `D:\Log\20261026\2026102610_TRIM001.log`. 설비 대수는 설정 목록으로 늘릴 수 있습니다. 서버 PC 탐색기에서 공유 경로를 먼저 열어 읽기 권한을 확인하세요. UI는 현재 설정 파일을 **선택**하지만 설비 목록을 화면에서 편집·저장하지는 않습니다.
 

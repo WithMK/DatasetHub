@@ -68,6 +68,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
                 UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
             }) ?? throw new InvalidDataException("빈 설정 파일입니다.");
             options.Validate(Path.GetDirectoryName(path)!);
+            Messages.Add("복사본 저장 경로: " + options.ArchiveRoot);
             var ui = Application.Current.Dispatcher;
             do
             {

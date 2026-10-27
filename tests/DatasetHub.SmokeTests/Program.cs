@@ -18,6 +18,9 @@ try
         Equipments = [new() { MachineId = "TEST", Enabled = true, Pcs = [new() { PcId = "CTRL", SourceRoot = source }] }]
     };
     options.Validate(root);
+    var configured = System.Text.Json.JsonSerializer.Deserialize<CollectorOptions>("""{"destinationRoot":"../copies","databasePath":"../history.db","equipments":[]}""")!;
+    configured.Validate(Path.Combine(root, "config"));
+    if (configured.ArchiveRoot != Path.Combine(root, "copies")) throw new Exception("configured destinationRoot");
     var day = new DateOnly(2026, 10, 26);
     Task<CollectionResult> Run() => new Collector(options).RunAsync(day, day);
     void Check(bool ok, string name) { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }

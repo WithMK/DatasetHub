@@ -3,14 +3,22 @@ namespace DatasetHub;
 public sealed class CollectorOptions
 {
     public string ArchiveRoot { get; set; } = "";
+    public string DestinationRoot { get; set; } = "";
     public string DatabasePath { get; set; } = "";
     public string CompletionSuffix { get; set; } = "";
     public List<Equipment> Equipments { get; set; } = [];
 
     public void Validate(string baseDirectory)
     {
+        if (!string.IsNullOrWhiteSpace(DestinationRoot))
+        {
+            if (!string.IsNullOrWhiteSpace(ArchiveRoot) &&
+                !Path.GetFullPath(ArchiveRoot, baseDirectory).Equals(Path.GetFullPath(DestinationRoot, baseDirectory), StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Set only one copy destination: destinationRoot or archiveRoot.");
+            ArchiveRoot = DestinationRoot;
+        }
         if (string.IsNullOrWhiteSpace(ArchiveRoot) || string.IsNullOrWhiteSpace(DatabasePath))
-            throw new ArgumentException("ArchiveRoot and DatabasePath are required.");
+            throw new ArgumentException("destinationRoot (or archiveRoot) and databasePath are required.");
         if (CompletionSuffix is not ("" or ".done")) throw new ArgumentException("CompletionSuffix must be empty or .done.");
         ArchiveRoot = Path.GetFullPath(ArchiveRoot, baseDirectory);
         DatabasePath = Path.GetFullPath(DatabasePath, baseDirectory);

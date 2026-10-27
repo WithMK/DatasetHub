@@ -1,5 +1,5 @@
 {
-  "archiveRoot": "../runtime/archive",
+  "destinationRoot": "../runtime/archive",
   "databasePath": "../runtime/history.db",
   "completionSuffix": "",
   "equipments": [
