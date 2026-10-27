@@ -22,10 +22,18 @@ try
         new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
     configured.Validate(Path.Combine(root, "config"));
     if (configured.ArchiveRoot != Path.Combine(root, "copies")) throw new Exception("configured destinationRoot");
+    var duplicate = new CollectorOptions
+    {
+        DestinationRoot = Path.Combine(root, "copies"), DatabasePath = Path.Combine(root, "other.db"),
+        Equipments = [new() { MachineId = "TRIM001" }, new() { MachineId = "trim001" }]
+    };
+    var duplicateRejected = false;
+    try { duplicate.Validate(root); } catch (ArgumentException e) when (e.Message.Contains("machineId 중복")) { duplicateRejected = true; }
+    if (!duplicateRejected) throw new Exception("duplicate machineId rejected while loading configuration");
     var day = new DateOnly(2026, 10, 26);
     Task<CollectionResult> Run() => new Collector(options).RunAsync(day, day);
     void Check(bool ok, string name) { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }
-    string Mirror(string file) => Path.Combine(options.ArchiveRoot, "20261026", file);
+    string Mirror(string file) => Path.Combine(options.ArchiveRoot, "TEST", "20261026", file);
     var first = await Run();
     Check(first.Collected == 1 && first.Failed == 0 &&
           first.SourcesChecked == 1 && first.DateFoldersFound == 1 && first.FilesFound == 1,
@@ -33,6 +41,7 @@ try
     var empty = await new Collector(options).RunAsync(day.AddDays(-1), day.AddDays(-1));
     Check(empty.SourcesChecked == 1 && empty.DateFoldersFound == 0 && empty.FilesFound == 0, "no matching date is reported");
     Check(File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Mirror("2026102610_TEST.log"))), "destination retains source directory and filename");
+    Check(!File.Exists(Path.Combine(options.ArchiveRoot, "20261026", "2026102610_TEST.log")), "destination is inside machine folder");
     Check((await Run()).Skipped == 1, "unchanged source skipped without duplicate rows");
     File.Delete(Mirror("2026102610_TEST.log"));
     Check((await Run()).Collected == 1 && File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Mirror("2026102610_TEST.log"))), "missing destination copied again");
@@ -70,7 +79,7 @@ try
     await File.WriteAllTextAsync(Path.Combine(older, "2026102410_TEST.log"), "older log");
     var fullScan = await new Collector(options).RunAllAsync();
     Check(fullScan.DateFoldersFound == 2 && fullScan.FilesFound >= 4 &&
-          File.Exists(Path.Combine(options.ArchiveRoot, "20261024", "2026102410_TEST.log")), "date-free scan discovers older folders");
+          File.Exists(Path.Combine(options.ArchiveRoot, "TEST", "20261024", "2026102410_TEST.log")), "date-free scan discovers older folders");
     options.Equipments.Insert(0, new() { MachineId = "OFFLINE", Enabled = true, Pcs = [new() { PcId = "CTRL", SourceRoot = Path.Combine(root, "missing") }] });
     Check((await Run()).Failed >= 1, "offline machine does not block other equipment");
     using (var held = new FileStream(Path.Combine(options.ArchiveRoot, ".collector.lock"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))

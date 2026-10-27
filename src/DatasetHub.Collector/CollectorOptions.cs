@@ -26,7 +26,7 @@ public sealed class CollectorOptions
         foreach (var machine in Equipments)
         {
             CheckId(machine.MachineId);
-            if (!machines.Add(machine.MachineId)) throw new ArgumentException("Duplicate MachineId.");
+            if (!machines.Add(machine.MachineId)) throw new ArgumentException("machineId 중복: " + machine.MachineId);
             var pcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var pc in machine.Pcs)
             {

@@ -60,9 +60,10 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                             try
                             {
                                 var owner = machine.MachineId + "/" + pc.PcId;
-                                if (mirrorOwners.TryGetValue(relative, out var existingOwner) && existingOwner != owner)
+                                var targetKey = machine.MachineId + "/" + relative;
+                                if (mirrorOwners.TryGetValue(targetKey, out var existingOwner) && existingOwner != owner)
                                     throw new IOException($"저장 경로 중복: {relative} ({existingOwner}, {owner}). 원본별 파일명이 고유해야 합니다.");
-                                mirrorOwners[relative] = owner;
+                                mirrorOwners[targetKey] = owner;
                                 await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token);
                             }
                             catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -113,7 +114,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             }
             RejectLink(marker);
         }
-        var mirror = Path.Combine(options.ArchiveRoot, relative);
+        var mirror = Path.Combine(options.ArchiveRoot, machine, relative);
         var mirrorDirectory = Path.GetDirectoryName(mirror)!;
         Directory.CreateDirectory(mirrorDirectory);
         RejectLink(mirrorDirectory);

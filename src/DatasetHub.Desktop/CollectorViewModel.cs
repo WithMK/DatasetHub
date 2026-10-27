@@ -17,6 +17,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     private string status = "설정 파일을 확인하고 수집 시작을 누르세요.";
     private string summary = "";
     private bool useDateRange;
+    private bool configValid;
     private bool autoRepeat;
     private int intervalMinutes = 5;
     private CancellationTokenSource? running;
@@ -25,7 +26,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public ObservableCollection<string> Messages { get; } = [];
     public ObservableCollection<string> SourceStatuses { get; } = [];
-    public string ConfigPath { get => configPath; set { configPath = value; Changed(); } }
+    public string ConfigPath { get => configPath; set { configPath = value; Changed(); CheckConfig(); } }
     public DateTime? FromDate { get => fromDate; set { fromDate = value; Changed(); } }
     public DateTime? ToDate { get => toDate; set { toDate = value; Changed(); } }
     public string Status { get => status; private set { status = value; Changed(); } }
@@ -39,8 +40,35 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
 
     public CollectorViewModel()
     {
-        start = new RelayCommand(() => _ = RunAsync(), () => running == null);
+        start = new RelayCommand(() => _ = RunAsync(), () => running == null && configValid);
         stop = new RelayCommand(RequestStop, () => running != null);
+        CheckConfig();
+    }
+    private static CollectorOptions ReadOptions(string path)
+    {
+        var full = Path.GetFullPath(path);
+        var options = JsonSerializer.Deserialize<CollectorOptions>(File.ReadAllText(full), new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+        }) ?? throw new InvalidDataException("빈 설정 파일입니다.");
+        options.Validate(Path.GetDirectoryName(full)!);
+        return options;
+    }
+    private void CheckConfig()
+    {
+        try
+        {
+            var options = ReadOptions(configPath);
+            configValid = true;
+            Status = $"설정 확인 완료 · 설비 {options.Equipments.Count}대 · 저장 {options.ArchiveRoot}";
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or JsonException or NotSupportedException)
+        {
+            configValid = false;
+            Status = "설정 오류: " + e.Message;
+        }
+        start.Refresh();
     }
     public void ShowBrowseError(Exception error)
     {
@@ -64,13 +92,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
         Messages.Clear(); SourceStatuses.Clear(); Summary = ""; Status = "수집 중…";
         try
         {
-            var path = Path.GetFullPath(configPath);
-            var options = JsonSerializer.Deserialize<CollectorOptions>(await File.ReadAllTextAsync(path), new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
-            }) ?? throw new InvalidDataException("빈 설정 파일입니다.");
-            options.Validate(Path.GetDirectoryName(path)!);
+            var options = ReadOptions(configPath);
             Messages.Add("복사본 저장 경로: " + options.ArchiveRoot);
             var ui = Application.Current.Dispatcher;
             var firstScan = true;
