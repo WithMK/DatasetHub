@@ -109,12 +109,32 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         if (File.Exists(mirror)) RejectLink(mirror);
         var temporary = mirror + ".partial";
         if (File.Exists(temporary)) RejectLink(temporary);
-        history.Record(machine, pc, relative, "Collecting");
+        var previous = history.LastCopy(machine, pc, relative);
         try
         {
             var before = new FileInfo(source);
             long size = before.Length;
             var modified = before.LastWriteTimeUtc;
+            if (previous is { } saved && File.Exists(mirror) && new FileInfo(mirror).Length == saved.size)
+            {
+                if (size == saved.size && modified == saved.modified)
+                {
+                    result.Skipped++;
+                    progress?.Invoke(new CollectionProgress(machine, pc, relative, "변경 없음 · " + mirror));
+                    return;
+                }
+                if (size > saved.size && await TailMatchesAsync(source, mirror, saved.size, token))
+                {
+                    history.Record(machine, pc, relative, "Collecting");
+                    await AppendAsync(source, mirror, saved.size, size, modified, token);
+                    history.Record(machine, pc, relative, "Collected", size, sourceModifiedUtc: modified);
+                    result.Collected++;
+                    result.AppendedBytes += size - saved.size;
+                    progress?.Invoke(new CollectionProgress(machine, pc, relative, $"추가분 {size - saved.size:N0}바이트 복사 · " + mirror));
+                    return;
+                }
+            }
+            history.Record(machine, pc, relative, "Collecting");
             // Do not deny the equipment writer access. A writer may still deny our read; retry next scan.
             await using var input = new FileStream(source, FileMode.Open, FileAccess.Read,
                 FileShare.ReadWrite | FileShare.Delete, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
@@ -141,7 +161,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                 // Same-directory move replaces the previous latest copy only after verification.
                 File.Move(temporary, mirror, overwrite: true);
             }
-            history.Record(machine, pc, relative, "Collected", size, hash);
+            history.Record(machine, pc, relative, "Collected", size, hash, sourceModifiedUtc: modified);
             if (unchanged) result.Skipped++; else result.Collected++;
             progress?.Invoke(new CollectionProgress(machine, pc, relative,
                 (unchanged ? "기존 복사본 확인 · " : "새 복사본 저장 · ") + mirror));
@@ -149,6 +169,53 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         finally
         {
             if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+    private static async Task<bool> TailMatchesAsync(string source, string mirror, long offset, CancellationToken token)
+    {
+        var count = (int)Math.Min(offset, 65536);
+        if (count == 0) return true;
+        var sourceTail = new byte[count];
+        var mirrorTail = new byte[count];
+        await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        await using var output = new FileStream(mirror, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        input.Position = offset - count;
+        output.Position = offset - count;
+        await input.ReadExactlyAsync(sourceTail, token);
+        await output.ReadExactlyAsync(mirrorTail, token);
+        return sourceTail.AsSpan().SequenceEqual(mirrorTail);
+    }
+    private static async Task AppendAsync(string source, string mirror, long offset, long targetSize, DateTime modified, CancellationToken token)
+    {
+        await using var input = new FileStream(source, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var output = new FileStream(mirror, FileMode.Open, FileAccess.Write,
+            FileShare.Read, 131072, FileOptions.Asynchronous);
+        if (output.Length != offset) throw new IOException("Destination size changed during append.");
+        input.Position = offset;
+        output.Position = offset;
+        try
+        {
+            var buffer = new byte[131072];
+            long remaining = targetSize - offset;
+            while (remaining > 0)
+            {
+                var read = await input.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, remaining)), token);
+                if (read == 0) throw new IOException("Source shrank during append.");
+                await output.WriteAsync(buffer.AsMemory(0, read), token);
+                remaining -= read;
+            }
+            await output.FlushAsync(token);
+            output.Flush(flushToDisk: true);
+            var after = new FileInfo(source);
+            if (after.Length != targetSize || after.LastWriteTimeUtc != modified)
+                throw new IOException("Source changed during append; retry next scan.");
+        }
+        catch
+        {
+            output.SetLength(offset);
+            output.Flush(flushToDisk: true);
+            throw;
         }
     }
     private async Task PreservePreviousVersionAsync(string machine, string pc, string relative, string previous, CancellationToken token)

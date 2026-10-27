@@ -64,6 +64,7 @@ public sealed class CollectionResult
     public int DateFoldersFound { get; set; }
     public int FilesFound { get; set; }
     public int Collected { get; set; }
+    public long AppendedBytes { get; set; }
     public int Skipped { get; set; }
     public int Deferred { get; set; }
     public int Failed { get; set; }

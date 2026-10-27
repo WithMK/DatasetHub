@@ -84,7 +84,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
                         if (Messages.Count > 1000) Messages.RemoveAt(Messages.Count - 1);
                     });
                 }).RunAsync(first, last, cts.Token));
-                Summary = $"원본 경로 {result.SourcesChecked}개 · 날짜 폴더 {result.DateFoldersFound}개 · 발견한 .log {result.FilesFound}개 · 새 복사본 {result.Collected} · 기존 확인 {result.Skipped} · 완료 대기 {result.Deferred} · 실패 {result.Failed}";
+                Summary = $"원본 경로 {result.SourcesChecked}개 · 날짜 폴더 {result.DateFoldersFound}개 · 발견한 .log {result.FilesFound}개 · 신규/갱신 {result.Collected} · 추가분 {result.AppendedBytes:N0}바이트 · 변경 없음 {result.Skipped} · 완료 대기 {result.Deferred} · 실패 {result.Failed}";
                 Status = result.Failed + result.Deferred > 0 ? "확인이 필요한 항목이 있습니다." :
                     result.FilesFound == 0 ? "선택 기간에 .log 파일이 없습니다. 경로와 날짜 폴더를 확인하세요." : "이번 확인 완료.";
                 if (!autoRepeat) break;

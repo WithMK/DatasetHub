@@ -33,15 +33,41 @@ internal sealed class History : IDisposable
               Path TEXT NOT NULL, Error TEXT NOT NULL, UpdatedUtc TEXT NOT NULL);
             """;
         command.ExecuteNonQuery();
+        using var columns = connection.CreateCommand();
+        columns.CommandText = "PRAGMA table_info(Files)";
+        using (var reader = columns.ExecuteReader())
+        {
+            var found = false;
+            while (reader.Read()) if (reader.GetString(1) == "SourceModifiedUtc") found = true;
+            if (!found)
+            {
+                reader.Close();
+                using var migration = connection.CreateCommand();
+                migration.CommandText = "ALTER TABLE Files ADD COLUMN SourceModifiedUtc TEXT";
+                migration.ExecuteNonQuery();
+            }
+        }
     }
-    public void Record(string machine, string pc, string relative, string status, long? size = null, string? hash = null, string? error = null)
+    public (long size, DateTime modified)? LastCopy(string machine, string pc, string relative)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Size, SourceModifiedUtc FROM Files WHERE MachineId=$m AND PcId=$p AND RelativePath=$r AND Status='Collected'";
+        AddKey(command, machine, pc, relative);
+        using var reader = command.ExecuteReader();
+        return reader.Read() && !reader.IsDBNull(0) && !reader.IsDBNull(1)
+            ? (reader.GetInt64(0), DateTime.Parse(reader.GetString(1), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind))
+            : null;
+    }
+    public void Record(string machine, string pc, string relative, string status, long? size = null, string? hash = null, string? error = null, DateTime? sourceModifiedUtc = null)
     {
         using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO Files VALUES ($m,$p,$r,$s,$z,$h,$e,1,$t)
+            INSERT INTO Files (MachineId,PcId,RelativePath,Status,Size,Sha256,Error,Attempts,UpdatedUtc,SourceModifiedUtc)
+            VALUES ($m,$p,$r,$s,$z,$h,$e,1,$t,$modified)
             ON CONFLICT(MachineId,PcId,RelativePath) DO UPDATE SET
               Status=excluded.Status, Size=COALESCE(excluded.Size,Files.Size),
-              Sha256=COALESCE(excluded.Sha256,Files.Sha256), Error=excluded.Error,
+              Sha256=excluded.Sha256, Error=excluded.Error,
+              SourceModifiedUtc=COALESCE(excluded.SourceModifiedUtc,Files.SourceModifiedUtc),
               Attempts=Files.Attempts+1, UpdatedUtc=excluded.UpdatedUtc;
             """;
         command.Parameters.AddWithValue("$m", machine);
@@ -52,6 +78,7 @@ internal sealed class History : IDisposable
         command.Parameters.AddWithValue("$h", (object?)hash ?? DBNull.Value);
         command.Parameters.AddWithValue("$e", (object?)error ?? DBNull.Value);
         command.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue("$modified", sourceModifiedUtc?.ToString("O") is { } value ? (object)value : DBNull.Value);
         command.ExecuteNonQuery();
     }
     public void ScanError(string machine, string pc, string path, string error)

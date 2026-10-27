@@ -36,11 +36,19 @@ try
     Check((await Run()).Collected == 1 && File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Mirror("2026102610_TEST.log"))), "missing destination copied again");
     await File.AppendAllTextAsync(original, firstLine + "\n");
     var appended = await Run();
-    Check(appended.Collected == 1, "growing file replaces destination");
+    Check(appended.Collected == 1 && appended.AppendedBytes == System.Text.Encoding.UTF8.GetByteCount(firstLine + "\n"), "growing file copies only appended bytes");
     Check(File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Mirror("2026102610_TEST.log"))), "destination updates to latest source bytes");
     await File.WriteAllTextAsync(original, "SEM_LOG_Version=2.0\n" + firstLine + "\nchanged invalid line\n");
+    File.SetLastWriteTimeUtc(original, DateTime.UtcNow.AddSeconds(2));
     var rewritten = await Run();
     Check(rewritten.Collected == 1 && File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Mirror("2026102610_TEST.log"))), "same-path rewrite replaces prior content");
+    var rewrittenBytes = await File.ReadAllBytesAsync(original);
+    rewrittenBytes[0] = (byte)'X';
+    await File.WriteAllBytesAsync(original, [.. rewrittenBytes, (byte)'!']);
+    File.SetLastWriteTimeUtc(original, DateTime.UtcNow.AddSeconds(4));
+    var prefixChanged = await Run();
+    Check(prefixChanged.Collected == 1 && prefixChanged.AppendedBytes == 0 &&
+          File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Mirror("2026102610_TEST.log"))), "changed prefix with growth triggers full replacement");
     Check(!Directory.Exists(Path.Combine(options.ArchiveRoot, "TEST", "CTRL", ".snapshots")), "version folder is disabled");
     await File.WriteAllTextAsync(Mirror("2026102610_TEST.log") + ".partial", "interrupted");
     Check((await Run()).Skipped == 1 && !File.Exists(Mirror("2026102610_TEST.log") + ".partial"), "stale partial cleaned");
