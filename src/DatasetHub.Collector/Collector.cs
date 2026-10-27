@@ -6,6 +6,8 @@ public sealed record CollectionProgress(string MachineId, string PcId, string Pa
 
 public sealed class Collector(CollectorOptions options, Action<CollectionProgress>? progress = null)
 {
+    // Version retention is implemented but not enabled during the copy-only phase.
+    private static readonly bool RetainVersions = false;
     public async Task<CollectionResult> RunAsync(DateOnly from, DateOnly to, CancellationToken token = default)
     {
         if (from > to) throw new ArgumentException("Invalid date range.");
@@ -85,7 +87,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         return result;
     }
 
-    private async Task<Snapshot?> CollectAsync(string machine, string pc, string relative, string source, History history, CollectionResult result, CancellationToken token)
+    private async Task CollectAsync(string machine, string pc, string relative, string source, History history, CollectionResult result, CancellationToken token)
     {
         RejectLink(source);
         if (options.CompletionSuffix.Length > 0)
@@ -96,14 +98,16 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                 history.Record(machine, pc, relative, "Deferred", error: "Completion marker missing.");
                 result.Deferred++;
                 progress?.Invoke(new CollectionProgress(machine, pc, relative, "완료 표시 대기: " + marker));
-                return null;
+                return;
             }
             RejectLink(marker);
         }
-        var versions = Path.Combine(options.ArchiveRoot, machine, pc, ".snapshots", relative);
-        Directory.CreateDirectory(versions);
-        for (var dir = versions; dir != null; dir = Path.GetDirectoryName(dir)) RejectLink(dir);
-        var temporary = Path.Combine(versions, "copy.partial");
+        var mirror = Path.Combine(options.ArchiveRoot, relative);
+        var mirrorDirectory = Path.GetDirectoryName(mirror)!;
+        Directory.CreateDirectory(mirrorDirectory);
+        RejectLink(mirrorDirectory);
+        if (File.Exists(mirror)) RejectLink(mirror);
+        var temporary = mirror + ".partial";
         if (File.Exists(temporary)) RejectLink(temporary);
         history.Record(machine, pc, relative, "Collecting");
         try
@@ -129,46 +133,39 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             // Recheck the source after the copy, even when size and timestamp stayed the same.
             if (await HashAsync(source, token) != hash) throw new IOException("Source changed during copy; retry next scan.");
             token.ThrowIfCancellationRequested();
-            var archive = Path.Combine(versions, hash + ".log");
-            var isNew = !File.Exists(archive);
-            if (File.Exists(archive))
+            var unchanged = File.Exists(mirror) && await HashAsync(mirror, token) == hash;
+            if (!unchanged)
             {
-                RejectLink(archive);
-                if (await HashAsync(archive, token) != hash) throw new IOException("Stored snapshot checksum mismatch.");
-            }
-            else
-            {
-                File.Move(temporary, archive, overwrite: false);
-            }
-            // Keep the latest copy at the source-relative path; older versions remain under .snapshots.
-            var mirror = Path.Combine(options.ArchiveRoot, relative);
-            var mirrorDirectory = Path.GetDirectoryName(mirror)!;
-            Directory.CreateDirectory(mirrorDirectory);
-            RejectLink(mirrorDirectory);
-            if (File.Exists(mirror)) RejectLink(mirror);
-            if (!File.Exists(mirror) || await HashAsync(mirror, token) != hash)
-            {
-                var mirrorTemporary = mirror + ".partial";
-                if (File.Exists(mirrorTemporary)) RejectLink(mirrorTemporary);
-                try
-                {
-                    File.Copy(archive, mirrorTemporary, overwrite: true);
-                    token.ThrowIfCancellationRequested();
-                    File.Move(mirrorTemporary, mirror, overwrite: true);
-                }
-                finally { if (File.Exists(mirrorTemporary)) File.Delete(mirrorTemporary); }
+                if (RetainVersions && File.Exists(mirror))
+                    await PreservePreviousVersionAsync(machine, pc, relative, mirror, token);
+                // Same-directory move replaces the previous latest copy only after verification.
+                File.Move(temporary, mirror, overwrite: true);
             }
             history.Record(machine, pc, relative, "Collected", size, hash);
-            if (isNew) result.Collected++; else result.Skipped++;
+            if (unchanged) result.Skipped++; else result.Collected++;
             progress?.Invoke(new CollectionProgress(machine, pc, relative,
-                (isNew ? "새 복사본 저장 · " : "기존 복사본 확인 · ") + mirror));
-            return new Snapshot(archive, relative + "@" + hash, hash);
+                (unchanged ? "기존 복사본 확인 · " : "새 복사본 저장 · ") + mirror));
         }
         finally
         {
             if (File.Exists(temporary)) File.Delete(temporary);
         }
     }
+    private async Task PreservePreviousVersionAsync(string machine, string pc, string relative, string previous, CancellationToken token)
+    {
+        var versions = Path.Combine(options.ArchiveRoot, machine, pc, ".snapshots", relative);
+        Directory.CreateDirectory(versions);
+        for (var dir = versions; dir != null; dir = Path.GetDirectoryName(dir)) RejectLink(dir);
+        var priorHash = await HashAsync(previous, token);
+        var archived = Path.Combine(versions, priorHash + ".log");
+        if (File.Exists(archived))
+        {
+            RejectLink(archived);
+            if (await HashAsync(archived, token) != priorHash) throw new IOException("Stored version checksum mismatch.");
+        }
+        else File.Copy(previous, archived);
+    }
+
     private static async Task<string> HashAsync(string path, CancellationToken token)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
