@@ -17,7 +17,9 @@ try
         Equipments = [new() { MachineId = "TEST", Enabled = true, Pcs = [new() { PcId = "CTRL", SourceRoot = source }] }]
     };
     options.Validate(root);
-    var configured = System.Text.Json.JsonSerializer.Deserialize<CollectorOptions>("""{"destinationRoot":"../copies","databasePath":"../history.db","equipments":[]}""")!;
+    var configured = System.Text.Json.JsonSerializer.Deserialize<CollectorOptions>(
+        """{"destinationRoot":"../copies","databasePath":"../history.db","equipments":[]}""",
+        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
     configured.Validate(Path.Combine(root, "config"));
     if (configured.ArchiveRoot != Path.Combine(root, "copies")) throw new Exception("configured destinationRoot");
     var day = new DateOnly(2026, 10, 26);
