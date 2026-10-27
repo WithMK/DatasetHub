@@ -1,5 +1,4 @@
 using DatasetHub;
-using Microsoft.Data.Sqlite;
 
 var root = Path.Combine(Path.GetTempPath(), "DatasetHub-" + Guid.NewGuid());
 Directory.CreateDirectory(root);
@@ -26,31 +25,22 @@ try
     void Check(bool ok, string name) { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }
     string SnapshotDir(string file) => Path.Combine(options.ArchiveRoot, "TEST", "CTRL", ".snapshots", "20261026", file);
     string[] Snapshots(string file) => Directory.GetFiles(SnapshotDir(file), "*.log");
-    int Count(string table, string condition = "")
-    {
-        using var db = new SqliteConnection($"Data Source={options.DatabasePath};Pooling=False"); db.Open();
-        using var cmd = db.CreateCommand(); cmd.CommandText = $"SELECT COUNT(*) FROM {table} WHERE 1=1 {condition}";
-        return Convert.ToInt32(cmd.ExecuteScalar());
-    }
     var first = await Run();
-    Check(first.Collected == 1 && first.Parsed == 1 && first.Failed == 0 &&
+    Check(first.Collected == 1 && first.Failed == 0 &&
           first.SourcesChecked == 1 && first.DateFoldersFound == 1 && first.FilesFound == 1,
         "matching date folder reports discovered log and snapshot");
     var empty = await new Collector(options).RunAsync(day.AddDays(-1), day.AddDays(-1));
     Check(empty.SourcesChecked == 1 && empty.DateFoldersFound == 0 && empty.FilesFound == 0, "no matching date is reported");
     Check(Snapshots("2026102610_TEST.log").Length == 1 && File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Snapshots("2026102610_TEST.log")[0])), "snapshot bytes equal source");
-    Check((await Run()).Skipped == 1 && Count("LogRows") == 1, "unchanged source skipped without duplicate rows");
-    using (var db = new SqliteConnection($"Data Source={options.DatabasePath};Pooling=False"))
-    { db.Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "DELETE FROM Files"; cmd.ExecuteNonQuery(); }
-    Check((await Run()).Skipped == 1, "missing collection history recovered");
+    Check((await Run()).Skipped == 1, "unchanged source skipped without duplicate rows");
     var prior = Snapshots("2026102610_TEST.log")[0];
     await File.AppendAllTextAsync(original, firstLine + "\n");
     var appended = await Run();
-    Check(appended.Collected == 1 && appended.Parsed == 2 && Snapshots("2026102610_TEST.log").Length == 2, "growing file creates a new snapshot");
-    Check(File.ReadAllText(prior).EndsWith(firstLine + "\n") && Count("LogRows") == 3, "old version and rows retained");
+    Check(appended.Collected == 1 && Snapshots("2026102610_TEST.log").Length == 2, "growing file creates a new snapshot");
+    Check(File.ReadAllText(prior).EndsWith(firstLine + "\n"), "old version retained");
     await File.WriteAllTextAsync(original, "SEM_LOG_Version=2.0\n" + firstLine + "\nchanged invalid line\n");
     var rewritten = await Run();
-    Check(rewritten.Collected == 1 && rewritten.InvalidRows == 1 && Snapshots("2026102610_TEST.log").Length == 3, "same-path rewrite creates independent version");
+    Check(rewritten.Collected == 1 && Snapshots("2026102610_TEST.log").Length == 3, "same-path rewrite creates independent version");
     var oldSnapshot = prior;
     File.Delete(oldSnapshot);
     await File.WriteAllTextAsync(Path.Combine(SnapshotDir("2026102610_TEST.log"), "copy.partial"), "interrupted");
@@ -65,8 +55,8 @@ try
     options.CompletionSuffix = "";
     var bad = Path.Combine(hour, "2026102612_TEST.log");
     await File.WriteAllTextAsync(bad, firstLine + "\nmalformed\n" + firstLine + "\textra\n");
-    Check((await Run()).InvalidRows >= 2 && Count("LogRows", "AND RelativePath LIKE '%2026102612_TEST.log@%'") == 3, "bad rows recorded by snapshot key");
-    Check((await Run()).InvalidRows >= 2 && Count("LogRows", "AND RelativePath LIKE '%2026102612_TEST.log@%'") == 3, "repeat does not duplicate parse rows");
+    Check((await Run()).Collected == 1 && Snapshots("2026102612_TEST.log").Length == 1, "unstructured log copied unchanged");
+    Check((await Run()).Skipped >= 1, "unstructured log accepted on repeat");
     options.Equipments.Insert(0, new() { MachineId = "OFFLINE", Enabled = true, Pcs = [new() { PcId = "CTRL", SourceRoot = Path.Combine(root, "missing") }] });
     Check((await Run()).Failed >= 1, "offline machine does not block other equipment");
     using (var held = new FileStream(Path.Combine(options.ArchiveRoot, ".collector.lock"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))

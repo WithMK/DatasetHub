@@ -48,26 +48,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                             progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "확인 중"));
                             try
                             {
-                                var snapshot = await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token);
-                                if (snapshot != null)
-                                {
-                                    var hash = snapshot.Sha256;
-                                    var archive = snapshot.ArchivePath;
-                                    try
-                                    {
-                                        var counts = await new StandardLogParser(history).ParseAsync(machine.MachineId, pc.PcId, snapshot.ParseKey, archive, hash, token);
-                                        result.Parsed += counts.valid;
-                                        result.InvalidRows += counts.invalid;
-                                        progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, counts.invalid > 0 ? $"수집 완료 · 파싱 오류 {counts.invalid}행" : "수집·파싱 완료"));
-                                    }
-                                    catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
-                                    {
-                                        history.ParseFailure(machine.MachineId, pc.PcId, snapshot.ParseKey, hash, e.Message);
-                                        result.Failed++;
-                                        progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "파싱 실패: " + e.Message));
-                                        Console.Error.WriteLine($"Parse failed {machine.MachineId}/{pc.PcId}/{relative}: {e.Message}");
-                                    }
-                                }
+                                await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token);
                             }
                             catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
                             {
