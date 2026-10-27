@@ -25,6 +25,7 @@ try
     void Check(bool ok, string name) { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }
     string SnapshotDir(string file) => Path.Combine(options.ArchiveRoot, "TEST", "CTRL", ".snapshots", "20261026", file);
     string[] Snapshots(string file) => Directory.GetFiles(SnapshotDir(file), "*.log");
+    string Mirror(string file) => Path.Combine(options.ArchiveRoot, "20261026", file);
     var first = await Run();
     Check(first.Collected == 1 && first.Failed == 0 &&
           first.SourcesChecked == 1 && first.DateFoldersFound == 1 && first.FilesFound == 1,
@@ -32,11 +33,15 @@ try
     var empty = await new Collector(options).RunAsync(day.AddDays(-1), day.AddDays(-1));
     Check(empty.SourcesChecked == 1 && empty.DateFoldersFound == 0 && empty.FilesFound == 0, "no matching date is reported");
     Check(Snapshots("2026102610_TEST.log").Length == 1 && File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Snapshots("2026102610_TEST.log")[0])), "snapshot bytes equal source");
+    Check(File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Mirror("2026102610_TEST.log"))), "destination retains source directory and filename");
     Check((await Run()).Skipped == 1, "unchanged source skipped without duplicate rows");
+    File.Delete(Mirror("2026102610_TEST.log"));
+    Check((await Run()).Skipped == 1 && File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Mirror("2026102610_TEST.log"))), "missing destination restored from snapshot");
     var prior = Snapshots("2026102610_TEST.log")[0];
     await File.AppendAllTextAsync(original, firstLine + "\n");
     var appended = await Run();
     Check(appended.Collected == 1 && Snapshots("2026102610_TEST.log").Length == 2, "growing file creates a new snapshot");
+    Check(File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Mirror("2026102610_TEST.log"))), "destination updates to latest source bytes");
     Check(File.ReadAllText(prior).EndsWith(firstLine + "\n"), "old version retained");
     await File.WriteAllTextAsync(original, "SEM_LOG_Version=2.0\n" + firstLine + "\nchanged invalid line\n");
     var rewritten = await Run();

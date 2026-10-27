@@ -16,6 +16,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         using var databaseLock = new FileStream(options.DatabasePath + ".collector.lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         using var history = new History(options.DatabasePath);
         var result = new CollectionResult();
+        var mirrorOwners = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var machine in options.Equipments.Where(x => x.Enabled))
         foreach (var pc in machine.Pcs)
         {
@@ -48,6 +49,10 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                             progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "확인 중"));
                             try
                             {
+                                var owner = machine.MachineId + "/" + pc.PcId;
+                                if (mirrorOwners.TryGetValue(relative, out var existingOwner) && existingOwner != owner)
+                                    throw new IOException($"저장 경로 중복: {relative} ({existingOwner}, {owner}). 원본별 파일명이 고유해야 합니다.");
+                                mirrorOwners[relative] = owner;
                                 await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token);
                             }
                             catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -125,20 +130,38 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             if (await HashAsync(source, token) != hash) throw new IOException("Source changed during copy; retry next scan.");
             token.ThrowIfCancellationRequested();
             var archive = Path.Combine(versions, hash + ".log");
+            var isNew = !File.Exists(archive);
             if (File.Exists(archive))
             {
                 RejectLink(archive);
                 if (await HashAsync(archive, token) != hash) throw new IOException("Stored snapshot checksum mismatch.");
-                result.Skipped++;
-                progress?.Invoke(new CollectionProgress(machine, pc, relative, "기존 복사본 확인 · " + archive));
             }
             else
             {
                 File.Move(temporary, archive, overwrite: false);
-                result.Collected++;
-                progress?.Invoke(new CollectionProgress(machine, pc, relative, "새 복사본 저장 · " + archive));
+            }
+            // Keep the latest copy at the source-relative path; older versions remain under .snapshots.
+            var mirror = Path.Combine(options.ArchiveRoot, relative);
+            var mirrorDirectory = Path.GetDirectoryName(mirror)!;
+            Directory.CreateDirectory(mirrorDirectory);
+            RejectLink(mirrorDirectory);
+            if (File.Exists(mirror)) RejectLink(mirror);
+            if (!File.Exists(mirror) || await HashAsync(mirror, token) != hash)
+            {
+                var mirrorTemporary = mirror + ".partial";
+                if (File.Exists(mirrorTemporary)) RejectLink(mirrorTemporary);
+                try
+                {
+                    File.Copy(archive, mirrorTemporary, overwrite: true);
+                    token.ThrowIfCancellationRequested();
+                    File.Move(mirrorTemporary, mirror, overwrite: true);
+                }
+                finally { if (File.Exists(mirrorTemporary)) File.Delete(mirrorTemporary); }
             }
             history.Record(machine, pc, relative, "Collected", size, hash);
+            if (isNew) result.Collected++; else result.Skipped++;
+            progress?.Invoke(new CollectionProgress(machine, pc, relative,
+                (isNew ? "새 복사본 저장 · " : "기존 복사본 확인 · ") + mirror));
             return new Snapshot(archive, relative + "@" + hash, hash);
         }
         finally
