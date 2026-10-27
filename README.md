@@ -1,39 +1,81 @@
 # DatasetHub
 
-트리밍 설비의 이미지·로그·검사 Metadata를 수집하고 제품별로 연결하여 AI 학습·분석용 Dataset을 구성하는 프로젝트입니다.
+설비 PC의 표준 `.log`를 중앙 PC로 가져와 최신 파일로 보관하고 복사 이력을 SQLite에 기록하는 Windows 시험용 프로그램입니다. 현재는 **로그 수집 단계**이며 이미지·JSON 수집과 Dataset 생성은 아직 구현 전입니다. 개발 내용은 [PR #1](https://github.com/WithMK/DatasetHub/pull/1)의 `feat/log-collector-prototype` 브랜치에 있습니다. `main` 브랜치에는 아직 이 실행 프로그램이 없습니다.
 
-## 현재 상태
+## EXE를 바로 실행하기
 
-**설계 및 저장소 준비 단계입니다. 실행 가능한 수집 프로그램은 아직 구현하지 않았습니다.**
+Windows x64에서 [최신 시험용 ZIP 다운로드](https://github.com/WithMK/DatasetHub/actions/runs/40422042841/artifacts/12696604837)를 사용하거나, 아래의 Visual Studio 빌드 방법을 사용합니다. CI 아티팩트는 보관 기한이 있으므로 링크가 만료되면 [PR의 최신 통과한 Actions 실행](https://github.com/WithMK/DatasetHub/actions)에서 `DatasetHub-Windows-x64`를 받으세요. 다운로드한 ZIP 안의 `DatasetHub-Windows-x64.zip`을 **한 번 더 압축 해제**한 뒤 `DatasetHub.Desktop.exe`를 실행합니다. 이 ZIP은 .NET 런타임을 포함하므로 VS와 SDK 설치가 필요하지 않습니다.
 
-입력 텍스트 로그는 SEM_LOG 2.0 표준 11필드의 탭 구분 .log를 따릅니다. 검사 JSON 양식은 미정입니다. 1차 개발은 파일 수집·SQLite 이력·재시도·중단 복구와 표준 로그 기본 파싱을 포함합니다.
+Visual Studio 2026으로 빌드할 경우:
 
-## 기본 원칙
+1. `feat/log-collector-prototype` 브랜치를 내려받아 저장소 루트의 **`DatasetHub.sln`**을 엽니다. VS의 `.NET 데스크톱 개발` 워크로드와 .NET 10 SDK가 필요합니다.
+2. **빌드 → 솔루션 빌드**를 누릅니다. NuGet 복원에 실패하면 패키지 접근 설정을 확인합니다.
+3. 탐색기에서 **`run\Debug\DatasetHub.Desktop.exe`**를 실행합니다. Release로 빌드했다면 `run\Release\DatasetHub.Desktop.exe`입니다. 설정은 솔루션 루트의 **`config\`**에서 읽습니다. 솔루션 폴더 이름이 `DataCollect`라면 `DataCollect\config\`입니다.
 
-- 설비 동작 영향 최소화와 누락 복구를 실시간성보다 우선합니다.
-- 설비의 C(OS·프로그램)와 D(데이터)는 서로 다른 물리 저장장치입니다.
-- 서버가 D의 공유폴더에서 저장 완료 자료를 PULL합니다.
-- 날짜·시간별 폴더를 대조하며 원본과 수집 이력을 보존합니다.
-- 설비 수는 설정 목록으로 관리합니다. 초기 9대/27PC는 예시이며 고정 상한이 아닙니다.
-- 이미지는 파일로 저장하고 SQLite에는 이력·경로·제품 관계·측정값을 기록합니다.
-- 생산 PC 원본 삭제는 초기 구현 범위에서 제외합니다.
+실행 파일 창 제목이 `DatasetHub · 표준 로그 수집 v0.2.1`인지 확인하세요. 오래된 EXE의 `찾아보기` 종료 문제가 남아 있다면 브랜치를 업데이트하고 솔루션을 **정리 → 다시 빌드**하세요. VS를 사용한 실행 안내는 [docs/visual-studio.md](docs/visual-studio.md)에 있습니다.
 
-## 구성
+## 모의 로그로 첫 수집 확인
 
-| 경로 | 내용 |
-|---|---|
-| [docs/system-design.md](docs/system-design.md) | 전체 설계 v0.3 |
-| [docs/phase1-scope.md](docs/phase1-scope.md) | 1차 구현 범위·검수 기준 |
-| [docs/standard-log-input.md](docs/standard-log-input.md) | 입력 표준 로그 계약·파서 범위 |
-| [docs/decisions.md](docs/decisions.md) | 확정 사항·미정 항목 |
-| [config/collector.example.json](config/collector.example.json) | 비밀정보 없는 제안 설정 |
-| src/ | 구현 소스 추가 예정 |
-| tests/ | 검증 코드·작은 합성 자료 추가 예정 |
-| scripts/ | 빌드·설치·검증 스크립트 추가 예정 |
+VS 빌드본은 **솔루션 루트(`DataCollect`)**의 PowerShell에서 아래처럼 실행합니다. ZIP 실행본은 압축을 해제한 프로그램 폴더에서 같은 명령을 사용합니다.
 
-## 시작 방법
+```powershell
+.\scripts\New-MockLogs.ps1
+.\run\Debug\DatasetHub.Desktop.exe
+```
 
-현재 실행 명령은 없습니다. 설계서와 1차 범위를 읽고 개발환경·SDK·패키지 반입 방법을 확인한 뒤 구현합니다.
-설정 예제는 아직 런타임에서 읽는 구현이 없는 계약 초안입니다.
+ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸세요. 스크립트는 첫 회에만 실행합니다. 동일한 `2026102610_DEMO001.log`가 있으면 덮어쓰지 않고 종료합니다. UI에는 솔루션 루트의 `config\collector.local-example.json`이 자동 표시됩니다. ZIP 실행본은 압축 해제 폴더의 `config\`를 사용합니다.
 
-실제 원본 이미지·생산 로그·운영 DB·접속 자격증명은 Git에 넣지 않습니다.
+1. **기간 직접 지정**을 끈 상태에서 **수집 시작**을 누릅니다. 첫 실행은 원본 경로의 모든 `yyyyMMdd` 폴더를 확인합니다.
+2. 첫 실행에서 `새 복사본 1`, `발견한 .log 1개`을 확인합니다.
+3. 다시 수집하면 `기존 확인 1`로 표시됩니다.
+4. 복사본은 설정 폴더의 상위 폴더에 있는 `runtime\archive`, 이력 DB는 `runtime\history.db`에 저장됩니다. `config/collector.local-example.json`의 경로는 **그 설정 파일이 있는 폴더 기준**으로 해석됩니다.
+
+`찾아보기`는 앱 내부의 JSON 파일 선택 창입니다. 취소하면 기존 설정 경로를 유지합니다. 자동 반복을 켜면 **1·5·10·30·60분** 중 선택한 간격으로 오늘과 이전 2일을 다시 검사합니다. 기본 주기는 5분이고, 앱을 닫으면 반복이 멈춥니다. 주기 시간은 직전 검사 **종료 후 대기 시간**입니다. 특정 과거 날짜를 확인하려면 자동 반복을 끄고 기간을 선택하세요.
+
+화면의 **원본 경로별 수집 현황**에는 경로마다 날짜 폴더·발견한 로그·갱신·변경 없음·실패 수와 가장 최근 파일 수정 시각을 표시합니다. 기본 수동 실행은 날짜 지정 없이 전체 폴더를 검사합니다. 자동 반복은 첫 회 전체 확인 후 오늘과 이전 2일만 주기적으로 확인합니다. 과거 범위를 다시 수집하려면 **기간 직접 지정**을 켜세요.
+
+## 다른 설비 PC의 로그 경로 등록
+
+예제 설정을 `config\collector.local.json`으로 복사하고 PC별 `sourceRoot`를 서버에서 접근할 수 있는 SMB 공유 경로로 바꿉니다. 예를 들어 설비 PC의 `D:\Log`를 `Log`로 공유했다면 JSON에는 다음처럼 입력합니다. UI에서 이 새 설정 파일을 선택하세요.
+
+```json
+{
+  "destinationRoot": "E:\\DatasetHub\\Raw",
+  "databasePath": "C:\\DatasetHub\\Db\\history.db",
+  "completionSuffix": "",
+  "equipments": [
+    {
+      "machineId": "TRIM001",
+      "enabled": true,
+      "pcs": [
+        { "pcId": "CTRL", "sourceRoot": "\\\\192.168.10.101\\Log" }
+      ]
+    }
+  ]
+}
+```
+
+`destinationRoot`는 복사본을 보관할 서버 PC의 기본 폴더입니다. 이전 설정의 `archiveRoot`도 지원합니다. 두 항목을 함께 쓰면 같은 경로여야 합니다. 실행하면 화면의 메시지에 적용된 저장 경로가 표시됩니다.
+
+복사본은 원본과 같은 날짜 폴더·파일명으로 저장됩니다. 예를 들어 `sourceRoot\20261026\2026102610_TRIM001.log`는 `destinationRoot\TRIM001\20261026\2026102610_TRIM001.log`가 됩니다. 원본이 갱신되면 같은 경로의 파일을 교체하며 이전 내용은 보존하지 않습니다. 버전 보관 코드는 마련되어 있지만 현재는 꺼져 있고 추후 옵션으로 제공할 예정입니다. 같은 machineId 안의 여러 PC는 날짜·파일명이 겹치지 않아야 합니다. 설정 파일을 선택하면 machineId 중복 여부를 즉시 검사하고, 중복이면 수집 시작을 막습니다. 이전 버전이 `destinationRoot\yyyyMMdd`에 저장한 파일은 자동으로 이동하지 않습니다.
+
+`sourceRoot`는 로그 기본 폴더입니다. 설비 PC에서는 `D:\Log`를 지정하고, 중앙 서버에서는 이를 공유한 경로(예: `\\192.168.10.101\Log`)를 지정합니다. 그 아래 `yyyyMMdd\*.log`를 찾습니다. 예: `D:\Log\20261026\2026102610_TRIM001.log`. 설비 대수는 설정 목록으로 늘릴 수 있습니다. 서버 PC 탐색기에서 공유 경로를 먼저 열어 읽기 권한을 확인하세요. UI는 현재 설정 파일을 **선택**하지만 설비 목록을 화면에서 편집·저장하지는 않습니다.
+
+수집기를 로그가 있는 PC에서 직접 실행한다면 같은 항목을 `"sourceRoot": "D:\\Log"`로 설정하세요. 기본 예제 설정은 모의 검증용 경로를 사용하므로 실제 로그를 가져올 때에는 이 값을 반드시 변경해야 합니다.
+
+현재 수집 단계에서는 `.log`의 내부 인코딩·필드·내용을 검사하거나 파싱하지 않습니다. 전체 복사에서는 크기·수정 시각·SHA-256을 확인하며, 이어 쓰기에서는 기존 끝부분과 복사 전후 원본 크기·수정 시각을 확인합니다.
+
+주기 확인에서 크기와 수정 시각이 그대로면 건너뛰고, 커진 파일은 기존 저장본의 끝부분을 확인한 뒤 **추가된 바이트만 복사**합니다. 파일이 줄거나 기존 부분이 바뀌면 전체 파일을 다시 복사합니다. 화면의 `추가분`은 해당 회차에 이어 붙인 바이트 수입니다.
+
+기본 `completionSuffix`는 빈 문자열이며 `.done` 파일이 없어도 현재 보이는 로그를 복사합니다. 같은 경로의 로그가 나중에 바뀌면 이전 복사본을 새 내용으로 교체합니다. 복사본은 **그 시점의 관측 결과**이며 최종 완료를 뜻하지 않습니다. 1분 주기는 로그 전체를 자주 읽으므로 실제 설비 부하를 측정해야 합니다. Windows 서비스 실행, 실제 설비 SMB/로그 인코딩 검증은 아직 완료되지 않았습니다. 자세한 동작은 [갱신 로그 수집 규칙](docs/rolling-log.md)에 있습니다.
+
+## 개발 문서
+
+- [시스템 전체 설계](docs/system-design.md)
+- [표준 로그 입력 계약](docs/standard-log-input.md)
+- [수집기 구현 및 검증 범위](docs/collector-prototype.md)
+- [기본 파서 범위](docs/parser-prototype.md)
+- [Windows ZIP 사용법](docs/windows-bundle.md)
+- [솔루션의 Git 수정 표시 처리](docs/solution-git-status.md)
+
+실제 생산 로그·이미지·운영 DB·접속 자격증명은 이 공개 Git 저장소에 올리지 않습니다.

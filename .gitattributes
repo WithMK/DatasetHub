@@ -1,0 +1,3 @@
+# Visual Studio writes solution files using Windows line endings.
+*.sln text eol=crlf
+*.slnx text eol=crlf
