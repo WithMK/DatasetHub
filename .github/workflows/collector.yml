@@ -22,9 +22,10 @@ jobs:
       - shell: pwsh
         run: |
           $folder = Join-Path $PWD 'run/Release'
-          foreach ($item in @('DatasetHub.Desktop.exe', 'DatasetHub.Collector.dll', 'config/collector.local-example.json', 'scripts/New-MockLogs.ps1')) {
+          foreach ($item in @('DatasetHub.Desktop.exe', 'DatasetHub.Collector.dll', 'scripts/New-MockLogs.ps1')) {
             if (!(Test-Path (Join-Path $folder $item))) { throw "Build output missing: $item" }
           }
+          if (!(Test-Path 'config/collector.local-example.json')) { throw 'Project config missing.' }
       - run: dotnet run --project tests/DatasetHub.DesktopTests --configuration Release
       - run: dotnet run --project tests/DatasetHub.SmokeTests --configuration Release
       - shell: pwsh

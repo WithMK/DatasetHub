@@ -29,12 +29,12 @@ dotnet run --project tests/DatasetHub.SmokeTests --configuration Release
 
 ## 수집 계약
 
-- 원본: SourceRoot/yyyyMMdd/임의시간폴더/*.log. 시간 폴더 바로 아래 파일만 탐색합니다. 추가 하위 폴더는 후속 지원입니다.
+- 원본: SourceRoot/yyyyMMdd/*.log. 날짜 폴더 바로 아래 파일만 탐색합니다. 예: D:\Log\20261026\2026102610_TRIM001.log.
 - 모의 완료 규약: `demo.log`를 완전히 닫은 후 `demo.log.done`을 생성하고 이후 원본을 변경하지 않습니다.
 - 마커 없는 .log는 Deferred, .partial은 탐색 대상에서 제외합니다. 오래됐다는 이유만으로 완료 처리하지 않습니다.
 - 실제 생산 프로그램에 이 완료 규약이 있다고 가정하지 않습니다. 실제 완료 신호 확정 후 교체해야 합니다.
 - 원본은 읽기 전용 접근하며 삭제하거나 마커를 생성하지 않습니다.
-- 대상: ArchiveRoot/MachineId/PcId/yyyyMMdd/시간폴더/파일명. 식별자는 고유하며 운영 중 재사용하지 않습니다.
+- 대상: ArchiveRoot/MachineId/PcId/.snapshots/yyyyMMdd/파일명/<SHA256>.log. 식별자는 고유하며 운영 중 재사용하지 않습니다.
 - SHA-256 원본 계산 → .partial 복사 → 서버 SHA-256·크기 검사 → 원본 크기·수정시각 재검사 → 최종 rename → SQLite 기록.
 - 재실행 때 완료 이력만 믿지 않고 원본과 수집본 해시를 다시 확인합니다. DB 기록 전 종료된 파일도 이 방식으로 복구합니다.
 - 실패·누락은 같은 날짜 범위를 다시 실행해 처리합니다. 과거 폴더에 늦게 추가된 파일도 발견합니다.

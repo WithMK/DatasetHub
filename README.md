@@ -23,7 +23,7 @@ VS 빌드본은 **솔루션 루트(`DataCollect`)**의 PowerShell에서 아래�
 .\run\Debug\DatasetHub.Desktop.exe
 ```
 
-ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸세요. 스크립트는 첫 회에만 실행합니다. 동일한 `demo.log`가 있으면 덮어쓰지 않고 종료합니다. UI에는 솔루션 루트의 `config\collector.local-example.json`이 자동 표시됩니다. ZIP 실행본은 압축 해제 폴더의 `config\`를 사용합니다.
+ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸세요. 스크립트는 첫 회에만 실행합니다. 동일한 `2026102610_DEMO001.log`가 있으면 덮어쓰지 않고 종료합니다. UI에는 솔루션 루트의 `config\collector.local-example.json`이 자동 표시됩니다. ZIP 실행본은 압축 해제 폴더의 `config\`를 사용합니다.
 
 1. **시작일과 종료일을 모두 `2026-10-26`**으로 선택하고 **수집 시작**을 누릅니다.
 2. 첫 실행에서 `새 복사본 1`, `파싱 1행`을 확인합니다.
@@ -34,7 +34,7 @@ ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸
 
 ## 다른 설비 PC의 로그 경로 등록
 
-예제 설정을 `config\collector.local.json`으로 복사하고 PC별 `sourceRoot`를 서버에서 접근할 수 있는 SMB 공유 경로로 바꿉니다. 예를 들어 설비 PC의 `D:\Log\Standard`를 `StandardLog`로 공유했다면 JSON에는 다음처럼 입력합니다. UI에서 이 새 설정 파일을 선택하세요.
+예제 설정을 `config\collector.local.json`으로 복사하고 PC별 `sourceRoot`를 서버에서 접근할 수 있는 SMB 공유 경로로 바꿉니다. 예를 들어 설비 PC의 `D:\Log`를 `Log`로 공유했다면 JSON에는 다음처럼 입력합니다. UI에서 이 새 설정 파일을 선택하세요.
 
 ```json
 {
@@ -46,14 +46,16 @@ ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸
       "machineId": "TRIM001",
       "enabled": true,
       "pcs": [
-        { "pcId": "CTRL", "sourceRoot": "\\\\192.168.10.101\\StandardLog" }
+        { "pcId": "CTRL", "sourceRoot": "\\\\192.168.10.101\\Log" }
       ]
     }
   ]
 }
 ```
 
-`sourceRoot` 아래에서 `yyyyMMdd\<시간폴더>\*.log`를 찾습니다. 설비 대수는 설정 목록으로 늘릴 수 있습니다. 서버 PC 탐색기에서 공유 경로를 먼저 열어 읽기 권한을 확인하세요. UI는 현재 설정 파일을 **선택**하지만 설비 목록을 화면에서 편집·저장하지는 않습니다.
+`sourceRoot`는 로그 기본 폴더입니다. 설비 PC에서는 `D:\Log`를 지정하고, 중앙 서버에서는 이를 공유한 경로(예: `\\192.168.10.101\Log`)를 지정합니다. 그 아래 `yyyyMMdd\*.log`를 찾습니다. 예: `D:\Log\20261026\2026102610_TRIM001.log`. 설비 대수는 설정 목록으로 늘릴 수 있습니다. 서버 PC 탐색기에서 공유 경로를 먼저 열어 읽기 권한을 확인하세요. UI는 현재 설정 파일을 **선택**하지만 설비 목록을 화면에서 편집·저장하지는 않습니다.
+
+수집기를 로그가 있는 PC에서 직접 실행한다면 같은 항목을 `"sourceRoot": "D:\\Log"`로 설정하세요. 기본 예제 설정은 모의 검증용 경로를 사용하므로 실제 로그를 가져올 때에는 이 값을 반드시 변경해야 합니다.
 
 기본 `completionSuffix`는 빈 문자열이며 `.done` 파일이 없어도 현재 보이는 로그를 복사합니다. 같은 경로의 로그가 나중에 바뀌면 이전 복사본을 보존하고 새 버전을 만듭니다. 복사본은 **그 시점의 관측 결과**이며 최종 완료를 뜻하지 않습니다. 1분 주기는 로그 전체를 자주 읽으므로 실제 설비 부하를 측정해야 합니다. 오래된 스냅샷 자동 정리, Windows 서비스 실행, 실제 설비 SMB/로그 인코딩 검증은 아직 완료되지 않았습니다. 자세한 동작은 [갱신 로그 수집 규칙](docs/rolling-log.md)에 있습니다.
 

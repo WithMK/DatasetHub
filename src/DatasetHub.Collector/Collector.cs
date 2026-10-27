@@ -30,51 +30,42 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                     try
                     {
                         RejectLink(day);
-                        foreach (var hour in Directory.EnumerateDirectories(day))
+                        // Log files are directly inside the yyyyMMdd day folder.
+                        foreach (var file in Directory.EnumerateFiles(day).Where(x => Path.GetExtension(x).Equals(".log", StringComparison.OrdinalIgnoreCase)))
                         {
+                            token.ThrowIfCancellationRequested();
+                            var relative = Path.GetRelativePath(pc.SourceRoot, file);
+                            progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "확인 중"));
                             try
                             {
-                                RejectLink(hour);
-                                // Hour names are intentionally not constrained to 00..23.
-                                foreach (var file in Directory.EnumerateFiles(hour).Where(x => Path.GetExtension(x).Equals(".log", StringComparison.OrdinalIgnoreCase)))
+                                var snapshot = await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token);
+                                if (snapshot != null)
                                 {
-                                    token.ThrowIfCancellationRequested();
-                                    var relative = Path.GetRelativePath(pc.SourceRoot, file);
-                                    progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "확인 중"));
+                                    var hash = snapshot.Sha256;
+                                    var archive = snapshot.ArchivePath;
                                     try
                                     {
-                                        var snapshot = await CollectAsync(machine.MachineId, pc.PcId, relative, file, history, result, token);
-                                        if (snapshot != null)
-                                        {
-                                            var hash = snapshot.Sha256;
-                                            var archive = snapshot.ArchivePath;
-                                            try
-                                            {
-                                                var counts = await new StandardLogParser(history).ParseAsync(machine.MachineId, pc.PcId, snapshot.ParseKey, archive, hash, token);
-                                                result.Parsed += counts.valid;
-                                                result.InvalidRows += counts.invalid;
-                                                progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, counts.invalid > 0 ? $"수집 완료 · 파싱 오류 {counts.invalid}행" : "수집·파싱 완료"));
-                                            }
-                                            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
-                                            {
-                                                history.ParseFailure(machine.MachineId, pc.PcId, snapshot.ParseKey, hash, e.Message);
-                                                result.Failed++;
-                                                progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "파싱 실패: " + e.Message));
-                                                Console.Error.WriteLine($"Parse failed {machine.MachineId}/{pc.PcId}/{relative}: {e.Message}");
-                                            }
-                                        }
+                                        var counts = await new StandardLogParser(history).ParseAsync(machine.MachineId, pc.PcId, snapshot.ParseKey, archive, hash, token);
+                                        result.Parsed += counts.valid;
+                                        result.InvalidRows += counts.invalid;
+                                        progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, counts.invalid > 0 ? $"수집 완료 · 파싱 오류 {counts.invalid}행" : "수집·파싱 완료"));
                                     }
                                     catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
                                     {
-                                        history.Record(machine.MachineId, pc.PcId, relative, "Failed", error: e.Message);
+                                        history.ParseFailure(machine.MachineId, pc.PcId, snapshot.ParseKey, hash, e.Message);
                                         result.Failed++;
-                                        progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "수집 실패: " + e.Message));
-                                        Console.Error.WriteLine($"{machine.MachineId}/{pc.PcId}/{relative}: {e.Message}");
+                                        progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "파싱 실패: " + e.Message));
+                                        Console.Error.WriteLine($"Parse failed {machine.MachineId}/{pc.PcId}/{relative}: {e.Message}");
                                     }
                                 }
                             }
-                            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-                            { LogScanError(hour, e); }
+                            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+                            {
+                                history.Record(machine.MachineId, pc.PcId, relative, "Failed", error: e.Message);
+                                result.Failed++;
+                                progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "수집 실패: " + e.Message));
+                                Console.Error.WriteLine($"{machine.MachineId}/{pc.PcId}/{relative}: {e.Message}");
+                            }
                         }
                     }
                     catch (Exception e) when (e is IOException or UnauthorizedAccessException)
