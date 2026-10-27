@@ -33,7 +33,11 @@ try
         return Convert.ToInt32(cmd.ExecuteScalar());
     }
     var first = await Run();
-    Check(first.Collected == 1 && first.Parsed == 1 && first.Failed == 0, "snapshot without marker and parse");
+    Check(first.Collected == 1 && first.Parsed == 1 && first.Failed == 0 &&
+          first.SourcesChecked == 1 && first.DateFoldersFound == 1 && first.FilesFound == 1,
+        "matching date folder reports discovered log and snapshot");
+    var empty = await new Collector(options).RunAsync(day.AddDays(-1), day.AddDays(-1));
+    Check(empty.SourcesChecked == 1 && empty.DateFoldersFound == 0 && empty.FilesFound == 0, "no matching date is reported");
     Check(Snapshots("2026102610_TEST.log").Length == 1 && File.ReadAllBytes(original).SequenceEqual(File.ReadAllBytes(Snapshots("2026102610_TEST.log")[0])), "snapshot bytes equal source");
     Check((await Run()).Skipped == 1 && Count("LogRows") == 1, "unchanged source skipped without duplicate rows");
     using (var db = new SqliteConnection($"Data Source={options.DatabasePath};Pooling=False"))

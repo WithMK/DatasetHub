@@ -80,12 +80,13 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
                 {
                     ui.BeginInvoke(() =>
                     {
-                        Messages.Add($"[{DateTime.Now:HH:mm:ss}] {item.MachineId}/{item.PcId} {item.Path} · {item.Message}");
-                        if (Messages.Count > 1000) Messages.RemoveAt(0);
+                        Messages.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {item.MachineId}/{item.PcId} {item.Path} · {item.Message}");
+                        if (Messages.Count > 1000) Messages.RemoveAt(Messages.Count - 1);
                     });
                 }).RunAsync(first, last, cts.Token));
-                Summary = $"새 복사본 {result.Collected} · 기존 확인 {result.Skipped} · 완료 대기 {result.Deferred} · 실패 {result.Failed} · 파싱 {result.Parsed}행 · 형식 오류 {result.InvalidRows}행";
-                Status = result.Failed + result.Deferred + result.InvalidRows == 0 ? "이번 확인 완료." : "확인이 필요한 항목이 있습니다.";
+                Summary = $"원본 경로 {result.SourcesChecked}개 · 날짜 폴더 {result.DateFoldersFound}개 · 발견한 .log {result.FilesFound}개 · 새 복사본 {result.Collected} · 기존 확인 {result.Skipped} · 완료 대기 {result.Deferred} · 실패 {result.Failed} · 파싱 {result.Parsed}행 · 형식 오류 {result.InvalidRows}행";
+                Status = result.Failed + result.Deferred + result.InvalidRows > 0 ? "확인이 필요한 항목이 있습니다." :
+                    result.FilesFound == 0 ? "선택 기간에 .log 파일이 없습니다. 경로와 날짜 폴더를 확인하세요." : "이번 확인 완료.";
                 if (!autoRepeat) break;
                 Status += $" 다음 확인까지 {intervalMinutes}분 대기 중…";
                 await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), cts.Token);

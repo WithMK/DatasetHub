@@ -20,20 +20,30 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         foreach (var pc in machine.Pcs)
         {
             token.ThrowIfCancellationRequested();
+            result.SourcesChecked++;
+            progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, pc.SourceRoot, $"원본 경로 확인 · 기간 {from:yyyyMMdd}~{to:yyyyMMdd}"));
             try
             {
                 RejectLink(pc.SourceRoot);
+                var dayCount = 0;
+                var sourceFiles = 0;
                 foreach (var day in Directory.EnumerateDirectories(pc.SourceRoot))
                 {
                     if (!DateOnly.TryParseExact(Path.GetFileName(day), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
                         || date < from || date > to) continue;
+                    dayCount++;
+                    result.DateFoldersFound++;
                     try
                     {
                         RejectLink(day);
+                        var dayFiles = 0;
                         // Log files are directly inside the yyyyMMdd day folder.
                         foreach (var file in Directory.EnumerateFiles(day).Where(x => Path.GetExtension(x).Equals(".log", StringComparison.OrdinalIgnoreCase)))
                         {
                             token.ThrowIfCancellationRequested();
+                            dayFiles++;
+                            sourceFiles++;
+                            result.FilesFound++;
                             var relative = Path.GetRelativePath(pc.SourceRoot, file);
                             progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "확인 중"));
                             try
@@ -67,10 +77,14 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                                 Console.Error.WriteLine($"{machine.MachineId}/{pc.PcId}/{relative}: {e.Message}");
                             }
                         }
+                        progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, day, $"날짜 폴더 확인 완료 · .log {dayFiles}개"));
                     }
                     catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                     { LogScanError(day, e); }
                 }
+                progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, pc.SourceRoot,
+                    $"경로 확인 완료 · 날짜 폴더 {dayCount}개 · .log {sourceFiles}개" +
+                    (dayCount == 0 ? " (선택 기간과 yyyyMMdd 폴더명을 확인하세요)" : sourceFiles == 0 ? " (날짜 폴더 바로 아래의 .log를 확인하세요)" : "")));
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             { LogScanError(pc.SourceRoot, e); }
@@ -95,6 +109,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             {
                 history.Record(machine, pc, relative, "Deferred", error: "Completion marker missing.");
                 result.Deferred++;
+                progress?.Invoke(new CollectionProgress(machine, pc, relative, "완료 표시 대기: " + marker));
                 return null;
             }
             RejectLink(marker);
@@ -134,11 +149,13 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                 RejectLink(archive);
                 if (await HashAsync(archive, token) != hash) throw new IOException("Stored snapshot checksum mismatch.");
                 result.Skipped++;
+                progress?.Invoke(new CollectionProgress(machine, pc, relative, "기존 복사본 확인 · " + archive));
             }
             else
             {
                 File.Move(temporary, archive, overwrite: false);
                 result.Collected++;
+                progress?.Invoke(new CollectionProgress(machine, pc, relative, "새 복사본 저장 · " + archive));
             }
             history.Record(machine, pc, relative, "Collected", size, hash);
             return new Snapshot(archive, relative + "@" + hash, hash);
