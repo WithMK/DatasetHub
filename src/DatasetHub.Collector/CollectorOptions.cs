@@ -60,6 +60,7 @@ public sealed class SourcePc
 }
 public sealed class CollectionResult
 {
+    public List<SourceScanStatus> Sources { get; set; } = [];
     public int SourcesChecked { get; set; }
     public int DateFoldersFound { get; set; }
     public int FilesFound { get; set; }

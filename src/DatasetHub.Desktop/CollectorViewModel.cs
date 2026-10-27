@@ -14,8 +14,9 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     private string configPath = ConfigFileLocator.ExamplePath;
     private DateTime? fromDate = DateTime.Today;
     private DateTime? toDate = DateTime.Today;
-    private string status = "설정 파일과 기간을 확인하세요.";
+    private string status = "설정 파일을 확인하고 수집 시작을 누르세요.";
     private string summary = "";
+    private bool useDateRange;
     private bool autoRepeat;
     private int intervalMinutes = 5;
     private CancellationTokenSource? running;
@@ -23,12 +24,14 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     private readonly RelayCommand stop;
     public event PropertyChangedEventHandler? PropertyChanged;
     public ObservableCollection<string> Messages { get; } = [];
+    public ObservableCollection<string> SourceStatuses { get; } = [];
     public string ConfigPath { get => configPath; set { configPath = value; Changed(); } }
     public DateTime? FromDate { get => fromDate; set { fromDate = value; Changed(); } }
     public DateTime? ToDate { get => toDate; set { toDate = value; Changed(); } }
     public string Status { get => status; private set { status = value; Changed(); } }
     public string Summary { get => summary; private set { summary = value; Changed(); } }
     public bool AutoRepeat { get => autoRepeat; set { autoRepeat = value; Changed(); } }
+    public bool UseDateRange { get => useDateRange; set { useDateRange = value; Changed(); } }
     public IReadOnlyList<int> IntervalChoices { get; } = [1, 5, 10, 30, 60];
     public int IntervalMinutes { get => intervalMinutes; set { intervalMinutes = value; Changed(); } }
     public ICommand StartCommand => start;
@@ -53,12 +56,12 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     private async Task RunAsync()
     {
         if (running != null) return;
-        if (fromDate == null || toDate == null || fromDate > toDate || string.IsNullOrWhiteSpace(configPath) ||
+        if ((useDateRange && (fromDate == null || toDate == null || fromDate > toDate)) || string.IsNullOrWhiteSpace(configPath) ||
             (autoRepeat && intervalMinutes is < 1 or > 1440))
         { Status = "설정·기간 및 자동 반복 주기(1~1440분)를 확인하세요."; return; }
         var cts = new CancellationTokenSource();
         running = cts; start.Refresh(); stop.Refresh();
-        Messages.Clear(); Summary = ""; Status = "수집 중…";
+        Messages.Clear(); SourceStatuses.Clear(); Summary = ""; Status = "수집 중…";
         try
         {
             var path = Path.GetFullPath(configPath);
@@ -70,12 +73,14 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
             options.Validate(Path.GetDirectoryName(path)!);
             Messages.Add("복사본 저장 경로: " + options.ArchiveRoot);
             var ui = Application.Current.Dispatcher;
+            var firstScan = true;
             do
             {
-                // Automatic mode rolls with the date, covering today and the previous two days.
-                var first = autoRepeat ? DateOnly.FromDateTime(DateTime.Today.AddDays(-2)) : DateOnly.FromDateTime(fromDate.Value);
-                var last = autoRepeat ? DateOnly.FromDateTime(DateTime.Today) : DateOnly.FromDateTime(toDate.Value);
-                Status = $"{first:yyyy-MM-dd} ~ {last:yyyy-MM-dd} 확인 중…";
+                // Without a manual date range, scan all dates initially; repeated scans cover recent days.
+                var allDates = !useDateRange && (firstScan || !autoRepeat);
+                var first = useDateRange ? DateOnly.FromDateTime(fromDate!.Value) : DateOnly.FromDateTime(DateTime.Today.AddDays(-2));
+                var last = useDateRange ? DateOnly.FromDateTime(toDate!.Value) : DateOnly.FromDateTime(DateTime.Today);
+                Status = allDates ? "전체 날짜 폴더 확인 중…" : $"{first:yyyy-MM-dd} ~ {last:yyyy-MM-dd} 확인 중…";
                 var result = await Task.Run(() => new Collector(options, item =>
                 {
                     ui.BeginInvoke(() =>
@@ -83,10 +88,14 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
                         Messages.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {item.MachineId}/{item.PcId} {item.Path} · {item.Message}");
                         if (Messages.Count > 1000) Messages.RemoveAt(Messages.Count - 1);
                     });
-                }).RunAsync(first, last, cts.Token));
+                }).RunAsync(allDates ? DateOnly.MinValue : first, allDates ? DateOnly.MaxValue : last, cts.Token));
+                SourceStatuses.Clear();
+                foreach (var source in result.Sources)
+                    SourceStatuses.Add($"{source.MachineId}/{source.PcId} · {source.Path} · 날짜 {source.DateFolders}개 · .log {source.Files}개 · 갱신 {source.Updated} · 변경 없음 {source.Unchanged} · 실패 {source.Failed} · 마지막 변경 {(source.LatestWriteUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "없음")}");
                 Summary = $"원본 경로 {result.SourcesChecked}개 · 날짜 폴더 {result.DateFoldersFound}개 · 발견한 .log {result.FilesFound}개 · 신규/갱신 {result.Collected} · 추가분 {result.AppendedBytes:N0}바이트 · 변경 없음 {result.Skipped} · 완료 대기 {result.Deferred} · 실패 {result.Failed}";
                 Status = result.Failed + result.Deferred > 0 ? "확인이 필요한 항목이 있습니다." :
-                    result.FilesFound == 0 ? "선택 기간에 .log 파일이 없습니다. 경로와 날짜 폴더를 확인하세요." : "이번 확인 완료.";
+                    result.FilesFound == 0 ? "확인 범위에 .log 파일이 없습니다. 경로와 날짜 폴더를 확인하세요." : "이번 확인 완료.";
+                firstScan = false;
                 if (!autoRepeat) break;
                 Status += $" 다음 확인까지 {intervalMinutes}분 대기 중…";
                 await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), cts.Token);

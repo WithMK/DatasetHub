@@ -65,6 +65,12 @@ try
     await File.WriteAllTextAsync(bad, firstLine + "\nmalformed\n" + firstLine + "\textra\n");
     Check((await Run()).Collected == 1 && File.ReadAllBytes(bad).SequenceEqual(File.ReadAllBytes(Mirror("2026102612_TEST.log"))), "unstructured log copied unchanged");
     Check((await Run()).Skipped >= 1, "unstructured log accepted on repeat");
+    var older = Path.Combine(source, "20261024");
+    Directory.CreateDirectory(older);
+    await File.WriteAllTextAsync(Path.Combine(older, "2026102410_TEST.log"), "older log");
+    var fullScan = await new Collector(options).RunAllAsync();
+    Check(fullScan.DateFoldersFound == 2 && fullScan.FilesFound >= 4 &&
+          File.Exists(Path.Combine(options.ArchiveRoot, "20261024", "2026102410_TEST.log")), "date-free scan discovers older folders");
     options.Equipments.Insert(0, new() { MachineId = "OFFLINE", Enabled = true, Pcs = [new() { PcId = "CTRL", SourceRoot = Path.Combine(root, "missing") }] });
     Check((await Run()).Failed >= 1, "offline machine does not block other equipment");
     using (var held = new FileStream(Path.Combine(options.ArchiveRoot, ".collector.lock"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))

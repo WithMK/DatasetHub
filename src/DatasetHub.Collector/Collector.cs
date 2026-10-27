@@ -3,11 +3,13 @@ using System.Security.Cryptography;
 namespace DatasetHub;
 
 public sealed record CollectionProgress(string MachineId, string PcId, string Path, string Message);
+public sealed record SourceScanStatus(string MachineId, string PcId, string Path, int DateFolders, int Files, int Updated, int Unchanged, int Failed, DateTime? LatestWriteUtc);
 
 public sealed class Collector(CollectorOptions options, Action<CollectionProgress>? progress = null)
 {
     // Version retention is implemented but not enabled during the copy-only phase.
     private static readonly bool RetainVersions = false;
+    public Task<CollectionResult> RunAllAsync(CancellationToken token = default) => RunAsync(DateOnly.MinValue, DateOnly.MaxValue, token);
     public async Task<CollectionResult> RunAsync(DateOnly from, DateOnly to, CancellationToken token = default)
     {
         if (from > to) throw new ArgumentException("Invalid date range.");
@@ -23,13 +25,17 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         foreach (var pc in machine.Pcs)
         {
             token.ThrowIfCancellationRequested();
+            var updatedBefore = result.Collected;
+            var unchangedBefore = result.Skipped;
+            var failedBefore = result.Failed;
+            var dayCount = 0;
+            var sourceFiles = 0;
+            DateTime? latestWriteUtc = null;
             result.SourcesChecked++;
             progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, pc.SourceRoot, $"원본 경로 확인 · 기간 {from:yyyyMMdd}~{to:yyyyMMdd}"));
             try
             {
                 RejectLink(pc.SourceRoot);
-                var dayCount = 0;
-                var sourceFiles = 0;
                 foreach (var day in Directory.EnumerateDirectories(pc.SourceRoot))
                 {
                     if (!DateOnly.TryParseExact(Path.GetFileName(day), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
@@ -47,6 +53,8 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                             dayFiles++;
                             sourceFiles++;
                             result.FilesFound++;
+                            var written = File.GetLastWriteTimeUtc(file);
+                            if (latestWriteUtc == null || written > latestWriteUtc) latestWriteUtc = written;
                             var relative = Path.GetRelativePath(pc.SourceRoot, file);
                             progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, relative, "확인 중"));
                             try
@@ -76,6 +84,9 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             { LogScanError(pc.SourceRoot, e); }
+            result.Sources.Add(new SourceScanStatus(machine.MachineId, pc.PcId, pc.SourceRoot,
+                dayCount, sourceFiles, result.Collected - updatedBefore, result.Skipped - unchangedBefore,
+                result.Failed - failedBefore, latestWriteUtc));
             void LogScanError(string path, Exception e)
             {
                 history.ScanError(machine.MachineId, pc.PcId, path, e.Message);
