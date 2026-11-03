@@ -44,6 +44,8 @@ var uiThread = new Thread(() =>
                 var example = (System.Windows.FrameworkElement)Navigate("FrameworkExample");
                 var vm = (DatasetHub.Modules.Example.ExampleViewModel)example.DataContext;
                 vm.PublishCommand.Execute();
+                // UIThread events are posted to the dispatcher; drain before asserting.
+                app.Dispatcher.Invoke(() => { }, DispatcherPriority.Background);
                 var shell = (DatasetHub.Shell.ShellViewModel)app.MainWindow.DataContext;
                 if (!shell.Status.Contains("예제 모듈")) throw new Exception("EventAggregator did not update Shell.");
                 var returned = (System.Windows.FrameworkElement)Navigate("Collector");
