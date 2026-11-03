@@ -4,6 +4,7 @@ using DatasetHub.Infrastructure;
 using DatasetHub.Modules.Collector;
 using DatasetHub.Modules.Example;
 using DatasetHub.Modules.Equipment;
+using DatasetHub.Modules.CollectionMonitoring;
 using Prism.DryIoc;
 using Prism.Events;
 using Prism.Ioc;
@@ -15,6 +16,8 @@ public partial class App : PrismApplication
     protected override Window CreateShell() => Container.Resolve<DatasetHub.Shell.MainWindow>();
     protected override void RegisterTypes(IContainerRegistry registry)
     {
+        registry.RegisterSingleton<ICollectionScheduleState, CollectionScheduleState>();
+        registry.RegisterSingleton<ICollectionMonitoringService, CollectionMonitoringService>();
         registry.RegisterSingleton<IEquipmentConfigurationService, EquipmentConfigurationService>();
         registry.RegisterSingleton<IConfirmationService, ConfirmationService>();
         registry.RegisterSingleton<ICloseGuard, CloseGuard>();
@@ -31,6 +34,7 @@ public partial class App : PrismApplication
         catalog.AddModule<CollectorModule>();
         catalog.AddModule<ExampleModule>();
         catalog.AddModule<EquipmentModule>();
+        catalog.AddModule<CollectionMonitoringModule>();
     }
     protected override void OnInitialized()
     {

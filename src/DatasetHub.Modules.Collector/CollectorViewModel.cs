@@ -19,6 +19,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     private readonly ICollectorService collector;
     private readonly IAppLogger logger;
     private readonly IEventAggregator events;
+    private readonly ICollectionScheduleState schedules;
     private DateTime? fromDate = DateTime.Today;
     private DateTime? toDate = DateTime.Today;
     private string status = "설정 파일을 확인하고 수집 시작을 누르세요.";
@@ -45,8 +46,9 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     public ICommand StartCommand => start;
     public ICommand StopCommand => stop;
 
-    public CollectorViewModel(IConfigurationService configuration, ICollectorService collector, IAppLogger logger, IEventAggregator events)
+    public CollectorViewModel(IConfigurationService configuration, ICollectorService collector, IAppLogger logger, IEventAggregator events, ICollectionScheduleState schedules)
     {
+        this.schedules = schedules;
         this.configuration = configuration; this.collector = collector; this.logger = logger; this.events = events;
         configPath = configuration.DefaultPath;
         events.GetEvent<ShutdownEvent>().Subscribe(RequestStop);
@@ -101,9 +103,11 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
         var cts = new CancellationTokenSource();
         running = cts; start.Refresh(); stop.Refresh();
         Messages.Clear(); SourceStatuses.Clear(); Summary = ""; Status = "수집 중…";
+        string? scheduledDatabase = null;
         try
         {
             var options = ReadOptions(configPath);
+            if (autoRepeat) { scheduledDatabase = options.DatabasePath; schedules.Start(scheduledDatabase); }
             Messages.Add("복사본 저장 경로: " + options.ArchiveRoot);
             var ui = Application.Current.Dispatcher;
             var firstScan = true;
@@ -137,12 +141,13 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
                 firstScan = false;
                 if (!autoRepeat) break;
                 Status += $" 다음 확인까지 {intervalMinutes}분 대기 중…";
+                if (scheduledDatabase != null) schedules.Waiting(scheduledDatabase, DateTime.UtcNow.AddMinutes(intervalMinutes));
                 await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), cts.Token);
             } while (!cts.IsCancellationRequested);
         }
         catch (OperationCanceledException) { Status = "중단했습니다. 같은 기간으로 다시 실행하면 이어서 확인합니다."; }
         catch (Exception e) { Status = "실행 실패: " + e.Message; Messages.Add(e.ToString()); logger.Write("수집 실행 실패", e); }
-        finally { running = null; cts.Dispose(); start.Refresh(); stop.Refresh(); }
+        finally { if (scheduledDatabase != null) schedules.Stop(scheduledDatabase); running = null; cts.Dispose(); start.Refresh(); stop.Refresh(); }
     }
     private void Changed([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }

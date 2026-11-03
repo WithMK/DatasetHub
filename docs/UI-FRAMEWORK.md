@@ -10,6 +10,8 @@
 - Core: 메뉴/설정/로그/대화상자/화면 전환 계약, StatusEvent 및 ShutdownEvent.
 - Infrastructure: JSON 읽기, 파일 로깅, 오류 대화상자, Region navigation 구현.
 - Modules.Collector: 기존 수집 화면·ViewModel·파일 선택 창, ICollectorService와 기존 엔진 어댑터.
+- Modules.CollectionMonitoring: 실행 이력 기반 수집 현황 및 선택 재수집.
+- Modules.Equipment: 설비/PC 설정 편집 및 경로 확인.
 - Modules.Example: 독립 화면/메뉴 등록 및 EventAggregator 예제.
 - Collector: 기존 CLI 및 텍스트/이미지 수집·SQLite 처리. 이번 UI 변경에서 수정하지 않음.
 
@@ -35,5 +37,5 @@ ICollectorService는 CancellationToken 및 진행 callback을 받아 백그라�
 
 ## 검증
 
-Windows CI에서 솔루션 빌드, 기존 수집 SmokeTests, 실제 WPF 파일 선택 취소, Prism 앱 시작/두 모듈 등록/화면 왕복/VM 유지/EventAggregator 전달을 검사합니다.
+Windows CI에서 솔루션 빌드, 기존 수집 SmokeTests, 실제 WPF 파일 선택 취소, Prism 앱 시작/모듈 등록/화면 왕복/VM 유지/EventAggregator 전달을 검사합니다.
 실제 설비 SMB 및 장시간 실행, DPI/화면 배치는 현장 확인이 필요합니다.

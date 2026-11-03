@@ -29,7 +29,7 @@ var uiThread = new Thread(() =>
             {
                 ((IContainerRegistry)app.Container).RegisterInstance<IConfirmationService>(new EquipmentTests.TestConfirmation());
                 var menu = app.Container.Resolve<IMenuRegistry>();
-                if (menu.Items.Count != 3) throw new Exception("Static modules did not register menus.");
+                if (menu.Items.Count != 4) throw new Exception("Static modules did not register menus.");
                 try { menu.Register(menu.Items[0]); throw new Exception("Duplicate menu accepted."); }
                 catch (ArgumentException) { }
                 var regions = app.Container.Resolve<IRegionManager>();
@@ -55,6 +55,10 @@ var uiThread = new Thread(() =>
                 if (equipment.DataContext is not DatasetHub.Modules.Equipment.EquipmentViewModel) throw new Exception("Equipment auto wiring failed.");
                 Navigate("Collector");
                 await EquipmentTests.RunAsync(app, regions);
+                await MonitoringTests.RunAsync();
+                var monitoring = (System.Windows.FrameworkElement)Navigate("CollectionMonitoringView");
+                if (monitoring.DataContext is not DatasetHub.Modules.CollectionMonitoring.CollectionMonitoringViewModel) throw new Exception("Monitoring wiring failed.");
+                Navigate("Collector");
                 Console.WriteLine("PASS Prism modules, duplicate menu guard, Region navigation, DI, auto wiring, events, retained collector state");
             }
             catch (Exception e) { windowError = e; }

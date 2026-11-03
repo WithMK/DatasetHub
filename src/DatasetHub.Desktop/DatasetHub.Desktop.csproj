@@ -11,6 +11,7 @@
     <!-- Own the executable dependency here so RID-specific publishing includes it only once. -->
     <ProjectReference Include="../DatasetHub.Collector/DatasetHub.Collector.csproj" />
     <ProjectReference Include="../DatasetHub.Modules.Equipment/DatasetHub.Modules.Equipment.csproj" />
+    <ProjectReference Include="../DatasetHub.Modules.CollectionMonitoring/DatasetHub.Modules.CollectionMonitoring.csproj"/>
     <PackageReference Include="Prism.DryIoc" Version="8.1.97" /><ProjectReference Include="../DatasetHub.Shell/DatasetHub.Shell.csproj" /><ProjectReference Include="../DatasetHub.Infrastructure/DatasetHub.Infrastructure.csproj" /><ProjectReference Include="../DatasetHub.Modules.Collector/DatasetHub.Modules.Collector.csproj" /><ProjectReference Include="../DatasetHub.Modules.Example/DatasetHub.Modules.Example.csproj" />
     <Content Include="../../scripts/New-MockLogs.ps1" Link="scripts/New-MockLogs.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
