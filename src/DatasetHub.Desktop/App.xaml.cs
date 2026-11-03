@@ -55,7 +55,7 @@ public partial class App : PrismApplication
                 {
                     closeApproved = true;
                     // Defer Close: the original Closing callback may have completed synchronously.
-                    MainWindow.Dispatcher.BeginInvoke(MainWindow.Close);
+                    _ = MainWindow.Dispatcher.BeginInvoke(MainWindow.Close);
                 }
             }
             catch (Exception error) { Container.Resolve<IAppLogger>().Write("종료 확인 실패", error); }
