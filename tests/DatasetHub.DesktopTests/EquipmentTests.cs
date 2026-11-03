@@ -14,7 +14,7 @@ using Prism.Regions;
 internal static class EquipmentTests
 {
     private static void Check(bool ok, string name) { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }
-    public static async Task RunAsync(TestApp app, IRegionManager regions)
+    public static async Task RunAsync(App app, IRegionManager regions)
     {
         var root = Path.Combine(Path.GetTempPath(), "DatasetHub-Equipment-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -127,13 +127,13 @@ internal static class EquipmentTests
             regions.RequestNavigate(RegionNames.Main, "Equipment", result => navigated = result.Result);
             Check(navigated == true, "Equipment view navigation");
             editor.SelectedEquipment!.Enabled = !editor.SelectedEquipment.Enabled;
-            app.Confirmation.Decision = UnsavedDecision.Cancel;
+            ((TestConfirmation)app.Container.Resolve<IConfirmationService>()).Decision = UnsavedDecision.Cancel;
             navigated = null;
             regions.RequestNavigate(RegionNames.Main, "Collector", result => navigated = result.Result);
             Check(navigated == false && editor.IsDirty, "real RegionManager honours unsaved cancel");
             app.MainWindow.Close();
             Check(app.MainWindow.IsVisible && editor.IsDirty, "real Window Closing honours unsaved cancel");
-            app.Confirmation.Decision = UnsavedDecision.Discard;
+            ((TestConfirmation)app.Container.Resolve<IConfirmationService>()).Decision = UnsavedDecision.Discard;
             navigated = null;
             regions.RequestNavigate(RegionNames.Main, "Collector", result => navigated = result.Result);
             Check(navigated == true && !editor.IsDirty, "real RegionManager discard permits navigation");
@@ -171,15 +171,5 @@ internal static class EquipmentTests
             if (path == "source") throw new IOException("isolated test failure");
             return new(path, true, "연결 성공");
         }
-    }
-}
-
-internal sealed class TestApp : App
-{
-    public EquipmentTests.TestConfirmation Confirmation { get; } = new();
-    protected override void RegisterTypes(IContainerRegistry registry)
-    {
-        base.RegisterTypes(registry);
-        registry.RegisterInstance<IConfirmationService>(Confirmation);
     }
 }

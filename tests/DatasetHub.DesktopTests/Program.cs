@@ -21,12 +21,13 @@ var uiThread = new Thread(() =>
         var dialog = new ConfigPathWindow("previous.json");
         dialog.Loaded += (_, _) => dialog.Dispatcher.BeginInvoke(dialog.CancelSelection);
         if (dialog.ShowDialog() != false) throw new Exception("WPF modal cancel did not return false.");
-        var app = new TestApp();
+        var app = new App();
         app.InitializeComponent();
         app.Startup += (_, _) => app.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(async () =>
         {
             try
             {
+                ((IContainerRegistry)app.Container).RegisterInstance<IConfirmationService>(new EquipmentTests.TestConfirmation());
                 var menu = app.Container.Resolve<IMenuRegistry>();
                 if (menu.Items.Count != 3) throw new Exception("Static modules did not register menus.");
                 try { menu.Register(menu.Items[0]); throw new Exception("Duplicate menu accepted."); }
