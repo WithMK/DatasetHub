@@ -54,7 +54,9 @@ internal static class EquipmentTests
                 saved.Json["imageStableSeconds"]!.GetValue<int>() == 0, "save preserves legacy field and relative paths and optional settings");
             vm.SelectedEquipment = vm.Equipments[1]; vm.SelectedEquipment.MachineId = "m01";
             var before = await File.ReadAllBytesAsync(path);
-            Check(!await vm.SaveAsync() && before.SequenceEqual(await File.ReadAllBytesAsync(path)), "duplicate MachineId case insensitive; invalid save leaves bytes intact");
+            var duplicateSaved = await vm.SaveAsync();
+            var afterDuplicate = await File.ReadAllBytesAsync(path);
+            Check(!duplicateSaved && before.SequenceEqual(afterDuplicate), "duplicate MachineId case insensitive; invalid save leaves bytes intact");
             vm.SelectedEquipment.MachineId = "M02";
             vm.SelectedEquipment.Pcs[1].PcId = "inspect";
             Check(!await vm.SaveAsync(), "duplicate PcId within equipment rejected");
