@@ -6,6 +6,7 @@ public sealed class CollectorOptions
     public string DestinationRoot { get; set; } = "";
     public string DatabasePath { get; set; } = "";
     public string CompletionSuffix { get; set; } = "";
+    public int ImageStableSeconds { get; set; } = 30;
     public List<Equipment> Equipments { get; set; } = [];
 
     public void Validate(string baseDirectory)
@@ -20,6 +21,7 @@ public sealed class CollectorOptions
         if (string.IsNullOrWhiteSpace(ArchiveRoot) || string.IsNullOrWhiteSpace(DatabasePath))
             throw new ArgumentException("destinationRoot (or archiveRoot) and databasePath are required.");
         if (CompletionSuffix is not ("" or ".done")) throw new ArgumentException("CompletionSuffix must be empty or .done.");
+        if (ImageStableSeconds is < 0 or > 3600) throw new ArgumentException("imageStableSeconds must be 0..3600.");
         ArchiveRoot = Path.GetFullPath(ArchiveRoot, baseDirectory);
         DatabasePath = Path.GetFullPath(DatabasePath, baseDirectory);
         var machines = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -77,4 +79,5 @@ public sealed class CollectionResult
     public int ImagesCopied { get; set; }
     public int ImagesSkipped { get; set; }
     public int ImageFailed { get; set; }
+    public int ImagesDeferred { get; set; }
 }

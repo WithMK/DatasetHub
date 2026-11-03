@@ -4,7 +4,7 @@ namespace DatasetHub;
 
 public sealed record CollectionProgress(string MachineId, string PcId, string Path, string Message);
 public sealed record SourceScanStatus(string MachineId, string PcId, string Path, int DateFolders, int Files, int Updated, int Unchanged, int Failed, DateTime? LatestWriteUtc,
-    string ImagePath = "", int ImageFiles = 0, int ImagesCopied = 0, int ImagesSkipped = 0, int ImageFailed = 0);
+    string ImagePath = "", int ImageFiles = 0, int ImagesCopied = 0, int ImagesSkipped = 0, int ImageFailed = 0, int ImagesDeferred = 0);
 
 public sealed class Collector(CollectorOptions options, Action<CollectionProgress>? progress = null)
 {
@@ -33,6 +33,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             var imageCopiedBefore = result.ImagesCopied;
             var imageSkippedBefore = result.ImagesSkipped;
             var imageFailedBefore = result.ImageFailed;
+            var imageDeferredBefore = result.ImagesDeferred;
             var dayCount = 0;
             var sourceFiles = 0;
             DateTime? latestWriteUtc = null;
@@ -99,7 +100,8 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                 dayCount, sourceFiles, result.Collected - updatedBefore, result.Skipped - unchangedBefore,
                 result.Failed - failedBefore, latestWriteUtc, pc.ImageSourceRoot,
                 result.ImagesFound - imagesBefore, result.ImagesCopied - imageCopiedBefore,
-                result.ImagesSkipped - imageSkippedBefore, result.ImageFailed - imageFailedBefore));
+                result.ImagesSkipped - imageSkippedBefore, result.ImageFailed - imageFailedBefore,
+                result.ImagesDeferred - imageDeferredBefore));
             void LogScanError(string path, Exception e)
             {
                 history.ScanError(machine.MachineId, pc.PcId, path, e.Message);

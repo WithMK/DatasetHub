@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Globalization;
 
 namespace DatasetHub;
 
@@ -12,35 +13,44 @@ internal sealed class ImageCollector(CollectorOptions options, History history, 
     {
         var root = pc.ImageSourceRoot;
         progress?.Invoke(new CollectionProgress(machine, pc.PcId, root, "이미지 원본 경로 확인"));
-        var folders = new Stack<string>();
-        folders.Push(root);
-        while (folders.Count > 0)
+        try
         {
-            token.ThrowIfCancellationRequested();
-            var folder = folders.Pop();
-            try
+            RejectLink(root);
+            foreach (var day in Directory.EnumerateDirectories(root))
             {
-                RejectLink(folder);
-                foreach (var entry in Directory.EnumerateFileSystemEntries(folder))
+                token.ThrowIfCancellationRequested();
+                if (!DateOnly.TryParseExact(Path.GetFileName(day), "yyyyMMdd", CultureInfo.InvariantCulture,
+                        DateTimeStyles.None, out var date) || date < from || date > to) continue;
+                var folders = new Stack<string>();
+                folders.Push(day);
+                while (folders.Count > 0)
                 {
                     token.ThrowIfCancellationRequested();
+                    var folder = folders.Pop();
                     try
                     {
-                        RejectLink(entry);
-                        if (Directory.Exists(entry)) { folders.Push(entry); continue; }
-                        if (!Extensions.Contains(Path.GetExtension(entry))) continue;
-                        var written = DateOnly.FromDateTime(File.GetLastWriteTime(entry));
-                        if (written < from || written > to) continue;
-                        result.ImagesFound++;
-                        await CopyAsync(machine, pc, entry, result, token);
+                        RejectLink(folder);
+                        foreach (var entry in Directory.EnumerateFileSystemEntries(folder))
+                        {
+                            token.ThrowIfCancellationRequested();
+                            try
+                            {
+                                RejectLink(entry);
+                                if (Directory.Exists(entry)) { folders.Push(entry); continue; }
+                                if (!Extensions.Contains(Path.GetExtension(entry))) continue;
+                                result.ImagesFound++;
+                                await CopyAsync(machine, pc, entry, result, token);
+                            }
+                            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                            { Failure(entry, e); }
+                        }
                     }
                     catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-                    { Failure(entry, e); }
+                    { Failure(folder, e); }
                 }
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            { Failure(folder, e); }
         }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Failure(root, e); }
         progress?.Invoke(new CollectionProgress(machine, pc.PcId, root, "이미지 경로 확인 완료"));
 
         void Failure(string path, Exception e)
@@ -63,11 +73,24 @@ internal sealed class ImageCollector(CollectorOptions options, History history, 
         for (var part = directory; part != null; part = Path.GetDirectoryName(part)) RejectLink(part);
         if (File.Exists(target)) RejectLink(target);
         var info = new FileInfo(source);
-        var previous = history.LastCopy(machine, pc.PcId, key);
-        if (previous is { } saved && saved.size == info.Length && saved.modified == info.LastWriteTimeUtc &&
+        var observed = history.ImageObservation(machine, pc.PcId, key);
+        if (observed is { status: "Collected" } saved && saved.size == info.Length && saved.modified == info.LastWriteTimeUtc &&
             File.Exists(target) && new FileInfo(target).Length == info.Length)
         {
             result.ImagesSkipped++;
+            return;
+        }
+        if (observed is not { status: "Pending" } pending || pending.size != info.Length ||
+            pending.modified != info.LastWriteTimeUtc)
+        {
+            history.Record(machine, pc.PcId, key, "Pending", info.Length, sourceModifiedUtc: info.LastWriteTimeUtc);
+            result.ImagesDeferred++;
+            progress?.Invoke(new CollectionProgress(machine, pc.PcId, relative, "이미지 안정화 대기 · 다음 확인에서 재검사"));
+            return;
+        }
+        if (DateTime.UtcNow - pending.observed < TimeSpan.FromSeconds(options.ImageStableSeconds))
+        {
+            result.ImagesDeferred++;
             return;
         }
         var temporary = target + ".partial";
@@ -96,6 +119,11 @@ internal sealed class ImageCollector(CollectorOptions options, History history, 
             history.Record(machine, pc.PcId, key, "Collected", size, copiedHash, sourceModifiedUtc: modified);
             result.ImagesCopied++;
             progress?.Invoke(new CollectionProgress(machine, pc.PcId, relative, "이미지 복사 완료 · " + target));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            history.Record(machine, pc.PcId, key, "Pending", info.Length, error: e.Message, sourceModifiedUtc: info.LastWriteTimeUtc);
+            throw;
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }

@@ -117,10 +117,11 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
                     if (!string.IsNullOrWhiteSpace(source.Path))
                         SourceStatuses.Add($"{source.MachineId}/{source.PcId} 로그 · {source.Path} · 날짜 {source.DateFolders}개 · .log {source.Files}개 · 갱신 {source.Updated} · 변경 없음 {source.Unchanged} · 마지막 변경 {(source.LatestWriteUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "없음")}");
                     if (!string.IsNullOrWhiteSpace(source.ImagePath))
-                        SourceStatuses.Add($"{source.MachineId}/{source.PcId} 이미지 · {source.ImagePath} · 발견 {source.ImageFiles} · 복사 {source.ImagesCopied} · 변경 없음 {source.ImagesSkipped} · 실패 {source.ImageFailed}");
+                        SourceStatuses.Add($"{source.MachineId}/{source.PcId} 이미지 · {source.ImagePath} · 발견 {source.ImageFiles} · 복사 {source.ImagesCopied} · 변경 없음 {source.ImagesSkipped} · 안정화 대기 {source.ImagesDeferred} · 실패 {source.ImageFailed}");
                 }
-                Summary = $"로그 {result.FilesFound}개 · 신규/갱신 {result.Collected} · 추가분 {result.AppendedBytes:N0}바이트 · 이미지 {result.ImagesFound}개 · 복사 {result.ImagesCopied} · 기존 {result.ImagesSkipped} · 실패 {result.Failed}";
+                Summary = $"로그 {result.FilesFound}개 · 신규/갱신 {result.Collected} · 추가분 {result.AppendedBytes:N0}바이트 · 이미지 {result.ImagesFound}개 · 복사 {result.ImagesCopied} · 기존 {result.ImagesSkipped} · 안정화 대기 {result.ImagesDeferred} · 실패 {result.Failed}";
                 Status = result.Failed + result.Deferred > 0 ? "확인이 필요한 항목이 있습니다." :
+                    result.ImagesDeferred > 0 ? "이미지 저장 안정화 대기 중입니다. 다음 확인에서 다시 검사합니다." :
                     result.FilesFound + result.ImagesFound == 0 ? "확인 범위에 로그·이미지가 없습니다. 경로를 확인하세요." : "이번 확인 완료.";
                 firstScan = false;
                 if (!autoRepeat) break;

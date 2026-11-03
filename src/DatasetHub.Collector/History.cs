@@ -58,6 +58,18 @@ internal sealed class History : IDisposable
             ? (reader.GetInt64(0), DateTime.Parse(reader.GetString(1), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind))
             : null;
     }
+    public (string status, long size, DateTime modified, DateTime observed)? ImageObservation(string machine, string pc, string relative)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Status, Size, SourceModifiedUtc, UpdatedUtc FROM Files WHERE MachineId=$m AND PcId=$p AND RelativePath=$r";
+        AddKey(command, machine, pc, relative);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read() || reader.IsDBNull(1) || reader.IsDBNull(2)) return null;
+        var style = System.Globalization.DateTimeStyles.RoundtripKind;
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        return (reader.GetString(0), reader.GetInt64(1),
+            DateTime.Parse(reader.GetString(2), culture, style), DateTime.Parse(reader.GetString(3), culture, style));
+    }
     public void Record(string machine, string pc, string relative, string status, long? size = null, string? hash = null, string? error = null, DateTime? sourceModifiedUtc = null)
     {
         using var command = connection.CreateCommand();

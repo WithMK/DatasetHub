@@ -1,6 +1,6 @@
 # DatasetHub
 
-설비 PC의 표준 `.log`를 중앙 PC로 가져와 최신 파일로 보관하고 복사 이력을 SQLite에 기록하는 Windows 시험용 프로그램입니다. 현재는 **로그 수집 단계**이며 이미지·JSON 수집과 Dataset 생성은 아직 구현 전입니다. 개발 내용은 [PR #1](https://github.com/WithMK/DatasetHub/pull/1)의 `feat/log-collector-prototype` 브랜치에 있습니다. `main` 브랜치에는 아직 이 실행 프로그램이 없습니다.
+설비 PC의 표준 `.log`와 검사 이미지를 중앙 PC로 가져와 복사 이력을 SQLite에 기록하는 Windows 시험용 프로그램입니다. 현재는 **파일 수집 단계**이며 이미지 내용 분석·JSON 수집과 Dataset 생성은 아직 구현 전입니다. 개발 내용은 [PR #1](https://github.com/WithMK/DatasetHub/pull/1)의 `feat/log-collector-prototype` 브랜치에 있습니다. `main` 브랜치에는 아직 이 실행 프로그램이 없습니다.
 
 ## EXE를 바로 실행하기
 
@@ -65,7 +65,7 @@ ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸
 
 수집기를 로그가 있는 PC에서 직접 실행한다면 같은 항목을 `"sourceRoot": "D:\\Log"`로 설정하세요. 기본 예제 설정은 모의 검증용 경로를 사용하므로 실제 로그를 가져올 때에는 이 값을 반드시 변경해야 합니다.
 
-이미지는 검사 PC별 `imageSourceRoot`를 지정합니다. `.png`, `.tif`, `.tiff`, `.jpg`, `.jpeg`, `.bmp`를 하위 폴더까지 찾고 파일명은 해석하지 않습니다. 예를 들어 `imageSourceRoot\\20261103\\LOT001\\20261103090501_Side_LOT001_P001_1.png`는 `destinationRoot\\TRIM001\\Image\\SIDE\\20261103\\LOT001\\같은파일명.png` 구조로 복사됩니다. `Side`와 `CSI`는 파일명에 들어 있는 일반 문자열입니다. 복사 중 파일이 바뀌면 실패로 기록하고 다음 확인에서 재시도합니다.
+이미지는 검사 PC별 `imageSourceRoot`를 지정합니다. 이 경로 바로 아래 `yyyyMMdd` 날짜 폴더 중 선택한 기간의 폴더만 열고, 그 아래 Thermal·Side 등 모든 하위 폴더를 재귀 탐색합니다. 파일 수정일로 날짜 폴더를 고르지 않습니다. `.png`, `.tif`, `.tiff`, `.jpg`, `.jpeg`, `.bmp`를 지원하며 파일명은 해석하지 않습니다. 원본의 하위 경로와 파일명 그대로 `destinationRoot\machineId\Image\pcId\yyyyMMdd\...`에 저장합니다. 새 이미지나 변경된 이미지는 크기·수정 시각이 두 번의 탐색에서 같고 첫 관측 후 기본 30초(`imageStableSeconds`)가 지나야 복사합니다. `.partial` 임시 파일과 SHA-256으로 복사본을 검증하며, 오류나 원본 변경 시 다음 주기에 재시도합니다.
 
 현재 수집 단계에서는 `.log`의 내부 인코딩·필드·내용을 검사하거나 파싱하지 않습니다. 전체 복사에서는 크기·수정 시각·SHA-256을 확인하며, 이어 쓰기에서는 기존 끝부분과 복사 전후 원본 크기·수정 시각을 확인합니다.
 
