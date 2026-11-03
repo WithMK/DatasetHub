@@ -113,10 +113,15 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
                 }).RunAsync(allDates ? DateOnly.MinValue : first, allDates ? DateOnly.MaxValue : last, cts.Token));
                 SourceStatuses.Clear();
                 foreach (var source in result.Sources)
-                    SourceStatuses.Add($"{source.MachineId}/{source.PcId} · {source.Path} · 날짜 {source.DateFolders}개 · .log {source.Files}개 · 갱신 {source.Updated} · 변경 없음 {source.Unchanged} · 실패 {source.Failed} · 마지막 변경 {(source.LatestWriteUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "없음")}");
-                Summary = $"원본 경로 {result.SourcesChecked}개 · 날짜 폴더 {result.DateFoldersFound}개 · 발견한 .log {result.FilesFound}개 · 신규/갱신 {result.Collected} · 추가분 {result.AppendedBytes:N0}바이트 · 변경 없음 {result.Skipped} · 완료 대기 {result.Deferred} · 실패 {result.Failed}";
+                {
+                    if (!string.IsNullOrWhiteSpace(source.Path))
+                        SourceStatuses.Add($"{source.MachineId}/{source.PcId} 로그 · {source.Path} · 날짜 {source.DateFolders}개 · .log {source.Files}개 · 갱신 {source.Updated} · 변경 없음 {source.Unchanged} · 마지막 변경 {(source.LatestWriteUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "없음")}");
+                    if (!string.IsNullOrWhiteSpace(source.ImagePath))
+                        SourceStatuses.Add($"{source.MachineId}/{source.PcId} 이미지 · {source.ImagePath} · 발견 {source.ImageFiles} · 복사 {source.ImagesCopied} · 변경 없음 {source.ImagesSkipped} · 실패 {source.ImageFailed}");
+                }
+                Summary = $"로그 {result.FilesFound}개 · 신규/갱신 {result.Collected} · 추가분 {result.AppendedBytes:N0}바이트 · 이미지 {result.ImagesFound}개 · 복사 {result.ImagesCopied} · 기존 {result.ImagesSkipped} · 실패 {result.Failed}";
                 Status = result.Failed + result.Deferred > 0 ? "확인이 필요한 항목이 있습니다." :
-                    result.FilesFound == 0 ? "확인 범위에 .log 파일이 없습니다. 경로와 날짜 폴더를 확인하세요." : "이번 확인 완료.";
+                    result.FilesFound + result.ImagesFound == 0 ? "확인 범위에 로그·이미지가 없습니다. 경로를 확인하세요." : "이번 확인 완료.";
                 firstScan = false;
                 if (!autoRepeat) break;
                 Status += $" 다음 확인까지 {intervalMinutes}분 대기 중…";

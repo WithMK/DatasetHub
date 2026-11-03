@@ -74,6 +74,24 @@ try
     await File.WriteAllTextAsync(bad, firstLine + "\nmalformed\n" + firstLine + "\textra\n");
     Check((await Run()).Collected == 1 && File.ReadAllBytes(bad).SequenceEqual(File.ReadAllBytes(Mirror("2026102612_TEST.log"))), "unstructured log copied unchanged");
     Check((await Run()).Skipped >= 1, "unstructured log accepted on repeat");
+    var imageRoot = Path.Combine(root, "image-source");
+    var imageDay = Path.Combine(imageRoot, "20261026", "LOT001");
+    Directory.CreateDirectory(imageDay);
+    var sideImage = Path.Combine(imageDay, "20261026100501_Side_LOT001_P001_1.png");
+    var csiImage = Path.Combine(imageDay, "20261026100502_CSI_LOT001_P001_1.tiff");
+    await File.WriteAllBytesAsync(sideImage, [0, 1, 2, 3]);
+    await File.WriteAllBytesAsync(csiImage, [4, 5, 6]);
+    File.SetLastWriteTime(sideImage, new DateTime(2026, 10, 26, 10, 5, 1));
+    File.SetLastWriteTime(csiImage, new DateTime(2026, 10, 26, 10, 5, 2));
+    options.Equipments.Add(new Equipment { MachineId = "IMG", Enabled = true,
+        Pcs = [new SourcePc { PcId = "SIDE", ImageSourceRoot = imageRoot }] });
+    var images = await Run();
+    var savedSide = Path.Combine(options.ArchiveRoot, "IMG", "Image", "SIDE", "20261026", "LOT001", Path.GetFileName(sideImage));
+    Check(images.ImagesFound == 2 && images.ImagesCopied == 2 && File.ReadAllBytes(sideImage).SequenceEqual(File.ReadAllBytes(savedSide)), "opaque Side and CSI images copied with folders");
+    Check((await Run()).ImagesSkipped == 2, "unchanged images skipped");
+    await File.WriteAllBytesAsync(sideImage, [9, 8, 7, 6]);
+    File.SetLastWriteTime(sideImage, new DateTime(2026, 10, 26, 10, 6, 1));
+    Check((await Run()).ImagesCopied == 1 && File.ReadAllBytes(sideImage).SequenceEqual(File.ReadAllBytes(savedSide)), "changed image replaced");
     var older = Path.Combine(source, "20261024");
     Directory.CreateDirectory(older);
     await File.WriteAllTextAsync(Path.Combine(older, "2026102410_TEST.log"), "older log");

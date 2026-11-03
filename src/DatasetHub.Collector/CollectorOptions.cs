@@ -32,10 +32,13 @@ public sealed class CollectorOptions
             {
                 CheckId(pc.PcId);
                 if (!pcs.Add(pc.PcId)) throw new ArgumentException("Duplicate PcId.");
-                if (string.IsNullOrWhiteSpace(pc.SourceRoot)) throw new ArgumentException("SourceRoot is required.");
-                pc.SourceRoot = Path.GetFullPath(pc.SourceRoot, baseDirectory);
-                if (Contains(pc.SourceRoot, ArchiveRoot) || Contains(ArchiveRoot, pc.SourceRoot)
-                    || Contains(pc.SourceRoot, DatabasePath)) throw new ArgumentException("Source and output paths must not overlap.");
+                if (string.IsNullOrWhiteSpace(pc.SourceRoot) && string.IsNullOrWhiteSpace(pc.ImageSourceRoot))
+                    throw new ArgumentException("sourceRoot or imageSourceRoot is required.");
+                if (!string.IsNullOrWhiteSpace(pc.SourceRoot)) pc.SourceRoot = Path.GetFullPath(pc.SourceRoot, baseDirectory);
+                if (!string.IsNullOrWhiteSpace(pc.ImageSourceRoot)) pc.ImageSourceRoot = Path.GetFullPath(pc.ImageSourceRoot, baseDirectory);
+                foreach (var root in new[] { pc.SourceRoot, pc.ImageSourceRoot }.Where(x => !string.IsNullOrWhiteSpace(x)))
+                    if (Contains(root, ArchiveRoot) || Contains(ArchiveRoot, root) || Contains(root, DatabasePath))
+                        throw new ArgumentException("Source and output paths must not overlap.");
             }
         }
     }
@@ -57,6 +60,7 @@ public sealed class SourcePc
 {
     public string PcId { get; set; } = "";
     public string SourceRoot { get; set; } = "";
+    public string ImageSourceRoot { get; set; } = "";
 }
 public sealed class CollectionResult
 {
@@ -69,4 +73,8 @@ public sealed class CollectionResult
     public int Skipped { get; set; }
     public int Deferred { get; set; }
     public int Failed { get; set; }
+    public int ImagesFound { get; set; }
+    public int ImagesCopied { get; set; }
+    public int ImagesSkipped { get; set; }
+    public int ImageFailed { get; set; }
 }

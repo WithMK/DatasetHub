@@ -3,7 +3,8 @@ using System.Security.Cryptography;
 namespace DatasetHub;
 
 public sealed record CollectionProgress(string MachineId, string PcId, string Path, string Message);
-public sealed record SourceScanStatus(string MachineId, string PcId, string Path, int DateFolders, int Files, int Updated, int Unchanged, int Failed, DateTime? LatestWriteUtc);
+public sealed record SourceScanStatus(string MachineId, string PcId, string Path, int DateFolders, int Files, int Updated, int Unchanged, int Failed, DateTime? LatestWriteUtc,
+    string ImagePath = "", int ImageFiles = 0, int ImagesCopied = 0, int ImagesSkipped = 0, int ImageFailed = 0);
 
 public sealed class Collector(CollectorOptions options, Action<CollectionProgress>? progress = null)
 {
@@ -28,10 +29,16 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             var updatedBefore = result.Collected;
             var unchangedBefore = result.Skipped;
             var failedBefore = result.Failed;
+            var imagesBefore = result.ImagesFound;
+            var imageCopiedBefore = result.ImagesCopied;
+            var imageSkippedBefore = result.ImagesSkipped;
+            var imageFailedBefore = result.ImageFailed;
             var dayCount = 0;
             var sourceFiles = 0;
             DateTime? latestWriteUtc = null;
             result.SourcesChecked++;
+            if (!string.IsNullOrWhiteSpace(pc.SourceRoot))
+            {
             progress?.Invoke(new CollectionProgress(machine.MachineId, pc.PcId, pc.SourceRoot, $"원본 경로 확인 · 기간 {from:yyyyMMdd}~{to:yyyyMMdd}"));
             try
             {
@@ -85,9 +92,14 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             { LogScanError(pc.SourceRoot, e); }
+            }
+            if (!string.IsNullOrWhiteSpace(pc.ImageSourceRoot))
+                await new ImageCollector(options, history, progress).ScanAsync(machine.MachineId, pc, from, to, result, token);
             result.Sources.Add(new SourceScanStatus(machine.MachineId, pc.PcId, pc.SourceRoot,
                 dayCount, sourceFiles, result.Collected - updatedBefore, result.Skipped - unchangedBefore,
-                result.Failed - failedBefore, latestWriteUtc));
+                result.Failed - failedBefore, latestWriteUtc, pc.ImageSourceRoot,
+                result.ImagesFound - imagesBefore, result.ImagesCopied - imageCopiedBefore,
+                result.ImagesSkipped - imageSkippedBefore, result.ImageFailed - imageFailedBefore));
             void LogScanError(string path, Exception e)
             {
                 history.ScanError(machine.MachineId, pc.PcId, path, e.Message);
