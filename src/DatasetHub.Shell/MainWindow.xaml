@@ -1,0 +1,6 @@
+<Window x:Class="DatasetHub.Shell.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:prism="http://prismlibrary.com/" Title="DatasetHub" Width="1280" Height="800" MinWidth="1100" MinHeight="650" WindowStartupLocation="CenterScreen">
+ <DockPanel><Border DockPanel.Dock="Top" Background="#20334A" Padding="18"><TextBlock Text="DatasetHub · Desktop Platform" Foreground="White" FontSize="22"/></Border>
+ <StatusBar DockPanel.Dock="Bottom"><TextBlock Text="{Binding Status}"/></StatusBar>
+ <Border DockPanel.Dock="Left" Width="180" Background="#EEF3F8" Padding="10"><ItemsControl ItemsSource="{Binding Menu.Items}"><ItemsControl.ItemTemplate><DataTemplate><Button Content="{Binding Title}" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Target}" HorizontalContentAlignment="Left" Margin="0,4"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></Border>
+ <ContentControl prism:RegionManager.RegionName="MainRegion"/>
+ </DockPanel></Window>

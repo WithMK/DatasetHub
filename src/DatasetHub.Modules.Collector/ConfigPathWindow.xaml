@@ -1,0 +1,25 @@
+<Window x:Class="DatasetHub.Desktop.ConfigPathWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="설정 파일 선택" Width="680" Height="480" MinWidth="520" MinHeight="360"
+ WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+ <Grid Margin="16">
+  <Grid.RowDefinitions>
+   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+   <RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+  </Grid.RowDefinitions>
+  <TextBlock Text="JSON 설정 파일이 있는 폴더를 열거나 전체 경로를 입력하세요." Margin="0,0,0,12" TextWrapping="Wrap"/>
+  <DockPanel Grid.Row="1" Margin="0,0,0,8">
+   <Button Content="상위 폴더" Click="Up_Click" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="12,5"/>
+   <Button Content="폴더 열기" Click="OpenFolder_Click" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="12,5"/>
+   <TextBox x:Name="FolderPath" MinHeight="30" VerticalContentAlignment="Center"/>
+  </DockPanel>
+  <ListBox x:Name="Entries" Grid.Row="2" MouseDoubleClick="Entries_DoubleClick" SelectionChanged="Entries_SelectionChanged"/>
+  <TextBox x:Name="SelectedFilePath" Grid.Row="3" Margin="0,10,0,10" MinHeight="30" VerticalContentAlignment="Center"/>
+  <DockPanel Grid.Row="4" LastChildFill="False">
+   <TextBlock x:Name="ErrorText" Foreground="DarkRed" VerticalAlignment="Center" TextWrapping="Wrap" DockPanel.Dock="Left"/>
+   <Button Content="취소" Click="Cancel_Click" DockPanel.Dock="Right" MinWidth="74" Margin="8,0,0,0" Padding="12,5"/>
+   <Button Content="선택" Click="Select_Click" DockPanel.Dock="Right" MinWidth="74" Padding="12,5"/>
+  </DockPanel>
+ </Grid>
+</Window>
