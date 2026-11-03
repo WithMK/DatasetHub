@@ -26,7 +26,20 @@ jobs:
             if (!(Test-Path (Join-Path $folder $item))) { throw "Build output missing: $item" }
           }
           if (!(Test-Path 'config/collector.local-example.json')) { throw 'Project config missing.' }
-      - run: dotnet run --project tests/DatasetHub.DesktopTests --configuration Release
+      - name: WPF and Equipment integration tests including UNC access
+        shell: pwsh
+        run: |
+          $sharePath = Join-Path $env:RUNNER_TEMP 'DatasetHubShare'
+          New-Item -ItemType Directory -Force $sharePath | Out-Null
+          Set-Content (Join-Path $sharePath 'probe.txt') 'read probe'
+          New-SmbShare -Name DatasetHubTest -Path $sharePath -FullAccess "$env:USERDOMAIN\$env:USERNAME" | Out-Null
+          try {
+            $env:DATASETHUB_TEST_SHARE = '\\localhost\DatasetHubTest'
+            dotnet run --project tests/DatasetHub.DesktopTests --configuration Release
+            if ($LASTEXITCODE -ne 0) { throw 'Desktop tests failed.' }
+          } finally {
+            Remove-SmbShare -Name DatasetHubTest -Force
+          }
       - run: dotnet run --project tests/DatasetHub.SmokeTests --configuration Release
       - shell: pwsh
         run: |

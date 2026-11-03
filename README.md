@@ -87,3 +87,7 @@ ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸
 ## 범용 Desktop Framework
 
 기존 EXE에서 왼쪽 메뉴로 데이터 수집과 모듈 예제를 전환합니다. [아키텍처 및 새 모듈 추가 방법](docs/UI-FRAMEWORK.md)을 참고하세요.
+
+## 설비 관리
+
+`설비 관리` 메뉴에서 기존 JSON을 불러와 설비·PC·로그/이미지 경로를 수정하고 저장할 수 있습니다. [사용법과 수집 중 적용 정책](docs/EQUIPMENT-MANAGEMENT.md)을 참고하세요.

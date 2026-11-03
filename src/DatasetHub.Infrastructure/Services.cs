@@ -61,7 +61,7 @@ public sealed class AppNavigation(IRegionManager regions, IAppLogger logger, IAp
     public void Navigate(string target) => regions.RequestNavigate(RegionNames.Main, target, result =>
     {
         if (result.Result == true) events.GetEvent<StatusEvent>().Publish($"화면: {target}");
-        else
+        else if (result.Error != null)
         {
             logger.Write($"화면 전환 실패: {target}", result.Error);
             dialogs.ShowError($"화면 전환 실패: {target}\n{result.Error?.Message}");

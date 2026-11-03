@@ -52,6 +52,12 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
         events.GetEvent<ShutdownEvent>().Subscribe(RequestStop);
         start = new RelayCommand(() => _ = RunAsync(), () => running == null && configValid);
         stop = new RelayCommand(RequestStop, () => running != null);
+        events.GetEvent<ConfigurationSavedEvent>().Subscribe(path =>
+        {
+            if (running != null) return; // active run owns its immutable options snapshot
+            try { if (Path.GetFullPath(configPath).Equals(path, StringComparison.OrdinalIgnoreCase)) CheckConfig(); }
+            catch (Exception error) when (error is ArgumentException or NotSupportedException) { ShowBrowseError(error); }
+        }, ThreadOption.UIThread);
         CheckConfig();
     }
     private CollectorOptions ReadOptions(string path)

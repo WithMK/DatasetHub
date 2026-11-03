@@ -3,6 +3,7 @@ using DatasetHub.Core;
 using DatasetHub.Infrastructure;
 using DatasetHub.Modules.Collector;
 using DatasetHub.Modules.Example;
+using DatasetHub.Modules.Equipment;
 using Prism.DryIoc;
 using Prism.Events;
 using Prism.Ioc;
@@ -10,9 +11,15 @@ using Prism.Modularity;
 namespace DatasetHub.Desktop;
 public partial class App : PrismApplication
 {
+    private bool closeApproved, checkingClose;
     protected override Window CreateShell() => Container.Resolve<DatasetHub.Shell.MainWindow>();
     protected override void RegisterTypes(IContainerRegistry registry)
     {
+        registry.RegisterSingleton<IEquipmentConfigurationService, EquipmentConfigurationService>();
+        registry.RegisterSingleton<IConfirmationService, ConfirmationService>();
+        registry.RegisterSingleton<ICloseGuard, CloseGuard>();
+        registry.RegisterSingleton<IPathReader, PathReader>();
+        registry.RegisterSingleton<IPathProbeService, PathProbeService>();
         registry.RegisterSingleton<IMenuRegistry, MenuRegistry>();
         registry.RegisterSingleton<IConfigurationService, ConfigurationService>();
         registry.RegisterSingleton<IAppLogger, FileLogger>();
@@ -23,6 +30,7 @@ public partial class App : PrismApplication
     {
         catalog.AddModule<CollectorModule>();
         catalog.AddModule<ExampleModule>();
+        catalog.AddModule<EquipmentModule>();
     }
     protected override void OnInitialized()
     {
@@ -35,7 +43,24 @@ public partial class App : PrismApplication
             e.Handled = true;
             Shutdown(1);
         };
-        MainWindow.Closing += (_, _) => Container.Resolve<IEventAggregator>().GetEvent<ShutdownEvent>().Publish();
+        MainWindow.Closing += async (_, e) =>
+        {
+            if (closeApproved) { Container.Resolve<IEventAggregator>().GetEvent<ShutdownEvent>().Publish(); return; }
+            e.Cancel = true;
+            if (checkingClose) return;
+            checkingClose = true;
+            try
+            {
+                if (await Container.Resolve<ICloseGuard>().CanCloseAsync())
+                {
+                    closeApproved = true;
+                    // Defer Close: the original Closing callback may have completed synchronously.
+                    MainWindow.Dispatcher.BeginInvoke(MainWindow.Close);
+                }
+            }
+            catch (Exception error) { Container.Resolve<IAppLogger>().Write("종료 확인 실패", error); }
+            finally { checkingClose = false; }
+        };
         MainWindow.Dispatcher.BeginInvoke(() => Container.Resolve<IAppNavigation>().Navigate(Container.Resolve<IMenuRegistry>().Items[0].Target));
     }
 }

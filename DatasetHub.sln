@@ -20,6 +20,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatasetHub.Modules.Collecto
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatasetHub.Modules.Example", "src\DatasetHub.Modules.Example\DatasetHub.Modules.Example.csproj", "{297F10EF-1C1B-4EF2-ADB4-FCB4CDAC98D8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatasetHub.Modules.Equipment", "src\DatasetHub.Modules.Equipment\DatasetHub.Modules.Equipment.csproj", "{B228568C-8D26-4935-BD01-D922B6458286}"
+EndProject
 Global
  GlobalSection(SolutionConfigurationPlatforms) = preSolution
   Debug|Any CPU = Debug|Any CPU
@@ -62,6 +64,10 @@ Global
   {297F10EF-1C1B-4EF2-ADB4-FCB4CDAC98D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
   {297F10EF-1C1B-4EF2-ADB4-FCB4CDAC98D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
   {297F10EF-1C1B-4EF2-ADB4-FCB4CDAC98D8}.Release|Any CPU.Build.0 = Release|Any CPU
+  {B228568C-8D26-4935-BD01-D922B6458286}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+  {B228568C-8D26-4935-BD01-D922B6458286}.Debug|Any CPU.Build.0 = Debug|Any CPU
+  {B228568C-8D26-4935-BD01-D922B6458286}.Release|Any CPU.ActiveCfg = Release|Any CPU
+  {B228568C-8D26-4935-BD01-D922B6458286}.Release|Any CPU.Build.0 = Release|Any CPU
  EndGlobalSection
  GlobalSection(SolutionProperties) = preSolution
   HideSolutionNode = FALSE

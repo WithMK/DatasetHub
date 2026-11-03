@@ -21,14 +21,14 @@ var uiThread = new Thread(() =>
         var dialog = new ConfigPathWindow("previous.json");
         dialog.Loaded += (_, _) => dialog.Dispatcher.BeginInvoke(dialog.CancelSelection);
         if (dialog.ShowDialog() != false) throw new Exception("WPF modal cancel did not return false.");
-        var app = new App();
+        var app = new TestApp();
         app.InitializeComponent();
-        app.Startup += (_, _) => app.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        app.Startup += (_, _) => app.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(async () =>
         {
             try
             {
                 var menu = app.Container.Resolve<IMenuRegistry>();
-                if (menu.Items.Count != 2) throw new Exception("Static modules did not register menus.");
+                if (menu.Items.Count != 3) throw new Exception("Static modules did not register menus.");
                 try { menu.Register(menu.Items[0]); throw new Exception("Duplicate menu accepted."); }
                 catch (ArgumentException) { }
                 var regions = app.Container.Resolve<IRegionManager>();
@@ -50,6 +50,10 @@ var uiThread = new Thread(() =>
                 if (!shell.Status.Contains("예제 모듈")) throw new Exception("EventAggregator did not update Shell.");
                 var returned = (System.Windows.FrameworkElement)Navigate("Collector");
                 if (!ReferenceEquals(first.DataContext, returned.DataContext)) throw new Exception("Collector state lost on navigation.");
+                var equipment = (System.Windows.FrameworkElement)Navigate("Equipment");
+                if (equipment.DataContext is not DatasetHub.Modules.Equipment.EquipmentViewModel) throw new Exception("Equipment auto wiring failed.");
+                Navigate("Collector");
+                await EquipmentTests.RunAsync(app, regions);
                 Console.WriteLine("PASS Prism modules, duplicate menu guard, Region navigation, DI, auto wiring, events, retained collector state");
             }
             catch (Exception e) { windowError = e; }
@@ -61,7 +65,7 @@ var uiThread = new Thread(() =>
 });
 uiThread.SetApartmentState(ApartmentState.STA);
 uiThread.Start();
-if (!uiThread.Join(TimeSpan.FromSeconds(15))) throw new Exception("WPF modal dialog failed to close.");
+if (!uiThread.Join(TimeSpan.FromSeconds(90))) throw new Exception("WPF modal dialog failed to close.");
 if (windowError != null) throw windowError;
 Console.WriteLine("PASS WPF modal cancel closes selector only");
 
