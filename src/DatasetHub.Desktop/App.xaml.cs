@@ -13,6 +13,7 @@ namespace DatasetHub.Desktop;
 public partial class App : PrismApplication
 {
     private bool closeApproved, checkingClose;
+    private ApplicationHeartbeat? heartbeat;
     protected override Window CreateShell() => Container.Resolve<DatasetHub.Shell.MainWindow>();
     protected override void RegisterTypes(IContainerRegistry registry)
     {
@@ -39,6 +40,16 @@ public partial class App : PrismApplication
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        try { heartbeat = new ApplicationHeartbeat(); } catch(Exception error) { Container.Resolve<IAppLogger>().Write("Heartbeat 초기화 실패",error); }
+        Exit += (_, _) => heartbeat?.Dispose();
+        var args = Environment.GetCommandLineArgs();
+        if(args.Length == 3 && args[1] == "--collect")
+            _ = MainWindow.Dispatcher.BeginInvoke(() =>
+            {
+                var collector = Container.Resolve<CollectorViewModel>();
+                collector.ConfigPath = args[2]; collector.AutoRepeat = true;
+                if(collector.StartCommand.CanExecute(null)) collector.StartCommand.Execute(null);
+            });
         DispatcherUnhandledException += (_, e) =>
         {
             Container.Resolve<IAppLogger>().Write("처리되지 않은 UI 오류", e.Exception);

@@ -5,6 +5,8 @@ using Prism.Events;
 using System.Windows.Threading;
 using DatasetHub.Desktop;
 
+if (args.Length == 3 && args[0] == "--reliability-child") { await ReliabilityTests.ChildAsync(args[1], args[2]); return; }
+
 var current = "previous.json";
 void Set(string path) => current = path;
 if (ConfigFilePicker.Select(new Stub(false, "new.json"), Set) || current != "previous.json") throw new Exception("Cancel changed path.");
@@ -56,6 +58,7 @@ var uiThread = new Thread(() =>
                 Navigate("Collector");
                 await EquipmentTests.RunAsync(app, regions);
                 await MonitoringTests.RunAsync();
+                await ReliabilityTests.RunAsync();
                 var monitoring = (System.Windows.FrameworkElement)Navigate("CollectionMonitoringView");
                 if (monitoring.DataContext is not DatasetHub.Modules.CollectionMonitoring.CollectionMonitoringViewModel) throw new Exception("Monitoring wiring failed.");
                 Navigate("Collector");
@@ -70,7 +73,7 @@ var uiThread = new Thread(() =>
 });
 uiThread.SetApartmentState(ApartmentState.STA);
 uiThread.Start();
-if (!uiThread.Join(TimeSpan.FromSeconds(90))) throw new Exception("WPF modal dialog failed to close.");
+if (!uiThread.Join(TimeSpan.FromSeconds(180))) throw new Exception("WPF modal dialog failed to close.");
 if (windowError != null) throw windowError;
 Console.WriteLine("PASS WPF modal cancel closes selector only");
 

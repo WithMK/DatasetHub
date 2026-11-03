@@ -97,36 +97,63 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     private async Task RunAsync()
     {
         if (running != null) return;
-        if ((useDateRange && (fromDate == null || toDate == null || fromDate > toDate)) || string.IsNullOrWhiteSpace(configPath) ||
-            (autoRepeat && intervalMinutes is < 1 or > 1440))
-        { Status = "설정·기간 및 자동 반복 주기(1~1440분)를 확인하세요."; return; }
-        var cts = new CancellationTokenSource();
-        running = cts; start.Refresh(); stop.Refresh();
-        Messages.Clear(); SourceStatuses.Clear(); Summary = ""; Status = "수집 중…";
-        string? scheduledDatabase = null;
+        if ((useDateRange && (fromDate == null || toDate == null || fromDate > toDate)) || (autoRepeat && intervalMinutes is < 1 or > 1440))
+        { Status = "기간과 주기를 확인하세요."; return; }
+        var automatic = autoRepeat; var manual = useDateRange; var interval = intervalMinutes;
+        var selectedFrom = fromDate; var selectedTo = toDate;
+        using var cts = new CancellationTokenSource(); running = cts; start.Refresh(); stop.Refresh();
+        var ui = Application.Current.Dispatcher;
+        void Present(Action action) { if (!ui.HasShutdownStarted) _ = ui.BeginInvoke(action); }
         try
         {
             var options = ReadOptions(configPath);
-            if (autoRepeat) { scheduledDatabase = options.DatabasePath; schedules.Start(scheduledDatabase); }
-            Messages.Add("복사본 저장 경로: " + options.ArchiveRoot);
-            var ui = Application.Current.Dispatcher;
-            var firstScan = true;
-            do
+            Messages.Clear(); SourceStatuses.Clear(); Summary = "";
+            // Schedule ownership and waits run off the WPF synchronization context.
+            await Task.Run(async () =>
             {
-                if (autoRepeat && scheduledDatabase == null) { scheduledDatabase = options.DatabasePath; schedules.Start(scheduledDatabase); }
-                // Without a manual date range, scan all dates initially; repeated scans cover recent days.
-                var allDates = !useDateRange && (firstScan || !autoRepeat);
-                var first = useDateRange ? DateOnly.FromDateTime(fromDate!.Value) : DateOnly.FromDateTime(DateTime.Today.AddDays(-2));
-                var last = useDateRange ? DateOnly.FromDateTime(toDate!.Value) : DateOnly.FromDateTime(DateTime.Today);
-                Status = allDates ? "전체 날짜 폴더 확인 중…" : $"{first:yyyy-MM-dd} ~ {last:yyyy-MM-dd} 확인 중…";
-                var result = await collector.RunAsync(options, allDates ? DateOnly.MinValue : first, allDates ? DateOnly.MaxValue : last, item =>
+                if (automatic) schedules.Start(options.DatabasePath);
+                try
                 {
-                    ui.BeginInvoke(() =>
+                    var firstScan = true;
+                    do
                     {
-                        Messages.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {item.MachineId}/{item.PcId} {item.Path} · {item.Message}");
-                        if (Messages.Count > 1000) Messages.RemoveAt(Messages.Count - 1);
-                    });
-                }, cts.Token);
+                        var allDates = !manual && (firstScan || !automatic);
+                        var first = manual ? DateOnly.FromDateTime(selectedFrom!.Value) : DateOnly.FromDateTime(DateTime.Today.AddDays(-2));
+                        var last = manual ? DateOnly.FromDateTime(selectedTo!.Value) : DateOnly.FromDateTime(DateTime.Today);
+                        Present(() => Status = "수집 및 복구 확인 중…");
+                        try
+                        {
+                            var result = await collector.RunAsync(options, allDates ? DateOnly.MinValue : first, allDates ? DateOnly.MaxValue : last,
+                                item => Present(() =>
+                                {
+                                    Messages.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {item.MachineId}/{item.PcId} {item.Path} · {item.Message}");
+                                    if (Messages.Count > 1000) Messages.RemoveAt(Messages.Count - 1);
+                                }), cts.Token, !manual).ConfigureAwait(false);
+                            Present(() => ShowResult(result));
+                        }
+                        catch (OperationCanceledException) when (cts.IsCancellationRequested) { throw; }
+                        catch (Exception error)
+                        {
+                            logger.Write("수집 회차 실패",error);
+                            Present(() => { Status = "수집 실패: " + error.Message; Messages.Insert(0,Status); });
+                            if (!automatic) break;
+                        }
+                        firstScan = false;
+                        if (!automatic) break;
+                        schedules.Waiting(options.DatabasePath,DateTime.UtcNow.AddMinutes(interval));
+                        Present(() => Status += $" 다음 확인까지 {interval}분 대기 중…");
+                        await Task.Delay(TimeSpan.FromMinutes(interval),cts.Token).ConfigureAwait(false);
+                    } while (!cts.IsCancellationRequested);
+                }
+                finally { if (automatic) schedules.Stop(options.DatabasePath); }
+            });
+        }
+        catch (OperationCanceledException) { Status = "중지 완료 · 다음 시작 시 미완료 이력을 재확인합니다."; }
+        catch (Exception error) { Status = "실행 실패: " + error.Message; logger.Write(Status,error); }
+        finally { running = null; start.Refresh(); stop.Refresh(); }
+    }
+    private void ShowResult(CollectionResult result)
+    {
                 SourceStatuses.Clear();
                 foreach (var source in result.Sources)
                 {
@@ -139,16 +166,6 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
                 Status = result.Failed + result.Deferred > 0 ? "확인이 필요한 항목이 있습니다." :
                     result.ImagesDeferred > 0 ? "이미지 저장 안정화 대기 중입니다. 다음 확인에서 다시 검사합니다." :
                     result.FilesFound + result.ImagesFound == 0 ? "확인 범위에 로그·이미지가 없습니다. 경로를 확인하세요." : "이번 확인 완료.";
-                firstScan = false;
-                if (!autoRepeat) break;
-                Status += $" 다음 확인까지 {intervalMinutes}분 대기 중…";
-                if (scheduledDatabase != null) schedules.Waiting(scheduledDatabase, DateTime.UtcNow.AddMinutes(intervalMinutes));
-                await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), cts.Token);
-            } while (!cts.IsCancellationRequested);
-        }
-        catch (OperationCanceledException) { Status = "중단했습니다. 같은 기간으로 다시 실행하면 이어서 확인합니다."; }
-        catch (Exception e) { Status = "실행 실패: " + e.Message; Messages.Add(e.ToString()); logger.Write("수집 실행 실패", e); }
-        finally { if (scheduledDatabase != null) schedules.Stop(scheduledDatabase); running = null; cts.Dispose(); start.Refresh(); stop.Refresh(); }
     }
     private void Changed([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }

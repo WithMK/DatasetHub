@@ -12,6 +12,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Collector publish failed.' }
 New-Item -ItemType Directory -Force -Path (Join-Path $bundle 'config'), (Join-Path $bundle 'scripts') | Out-Null
 Copy-Item (Join-Path $repo 'config/collector.local-example.json') (Join-Path $bundle 'config/collector.local-example.json')
 Copy-Item (Join-Path $repo 'scripts/New-MockLogs.ps1') (Join-Path $bundle 'scripts/New-MockLogs.ps1')
+Copy-Item (Join-Path $repo 'scripts/Watch-DatasetHub.ps1') (Join-Path $bundle 'scripts/Watch-DatasetHub.ps1')
 Copy-Item (Join-Path $repo 'docs/windows-bundle.md') (Join-Path $bundle 'START-HERE.md')
 if (!(Test-Path (Join-Path $bundle 'DatasetHub.Desktop.exe')) -or !(Test-Path (Join-Path $console 'DatasetHub.Collector.exe'))) { throw 'Missing executable.' }
 Write-Host "Bundle created: $bundle"

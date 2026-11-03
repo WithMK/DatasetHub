@@ -6,6 +6,17 @@ public sealed record CollectionMetrics(int Found = 0, int Copied = 0, int Unchan
 public sealed record SourceCollectionState(string MachineId, string PcId, string Target, string State,
     DateTime? LastAttemptUtc, DateTime? LastSuccessUtc, CollectionMetrics Log, CollectionMetrics Image, string LastError)
 {
+    public string Health { get; init; } = "Idle";
+    public string Connection { get; init; } = "미확인";
+    public string LastConnectionSuccess { get; init; } = "";
+    public string LastConnectionFailure { get; init; } = "";
+    public string LastFailure { get; init; } = "";
+    public int ConsecutiveFailures { get; init; }
+    public string NextScheduled { get; init; } = "수동/중지";
+    public string Duration { get; init; } = "";
+    public string Recovery { get; init; } = "";
+    public string Incident { get; init; } = "";
+    public string Freshness { get; init; } = "";
     public int CollectedFiles => Log.Copied + Image.Copied;
     public string LastAttempt => LastAttemptUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "없음";
     public string LastSuccess => LastSuccessUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "없음";

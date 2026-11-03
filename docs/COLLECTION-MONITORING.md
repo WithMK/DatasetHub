@@ -34,3 +34,7 @@ Collector 자동 실행과 모니터링 수동 실행이 겹치면 기존 archiv
 Core의 ICollectionMonitoringService와 ICollectionScheduleState를 다른 모듈에서 재사용할 수 있습니다. Infrastructure가 설정/SQLite 조회와 기존 엔진 실행을 구현하며 Modules.CollectionMonitoring에는 View/ViewModel/Prism Module만 둡니다. Shell에는 업무 코드가 없습니다.
 Windows 테스트는 여러 PC, 로그/이미지 실적, 빈 탐색 성공, 실패 복구, 설정 변경, 기존 DB 마이그레이션/보존, 활성 스케줄 지연, 중지/취소/중단, 선택 재수집과 잠금, WPF Navigation 및 기존 Collector/Equipment 회귀를 확인합니다.
 기간별 실적 집계, 200건을 넘는 이력 페이지 탐색, 개별 실패 파일 재수집은 후속 범위입니다. 실제 설비 SMB 성능과 장시간 운전은 현장 확인 대상입니다.
+
+## Reliability 확장
+
+공유 접근 상태·연속 실패·예정 시간·작업 시간·열린 장애·자동 복구 진행은 [Collection Reliability](COLLECTION-RELIABILITY.md)를 참고하세요. 실행 루프는 UI와 분리되며 설정 변경은 다음 시작부터 적용됩니다.

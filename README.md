@@ -95,3 +95,7 @@ ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸
 ## 수집 모니터링
 
 `수집 모니터링`에서 PC별 마지막 실행·정상 완료 시각, 로그/이미지 실적, 실행·오류 이력을 조회하고 선택 설비/PC를 기간 지정 재수집할 수 있습니다. [상태 판정 및 사용법](docs/COLLECTION-MONITORING.md)을 참고하세요.
+
+## 수집 안정성 및 자동 복구
+
+실패 회차는 제한된 Backoff 재시도로 재확인하고, 자동 전체 모드에서는 장애 후 과거 날짜도 대조합니다. 무진행 Timeout은 취소를 요청하되 기존 작업 종료 전 중복 실행하지 않습니다. [설정·장애 복구·Heartbeat/Watchdog 운영 안내](docs/COLLECTION-RELIABILITY.md)를 참고하세요.

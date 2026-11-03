@@ -69,7 +69,7 @@ public sealed class CollectionMonitoringViewModel : BindableBase, INavigationAwa
             var key = Selected;
             Sources.Clear(); foreach (var row in snapshot.Sources) Sources.Add(row);
             Selected = Sources.FirstOrDefault(x => x.MachineId == key?.MachineId && x.PcId == key.PcId) ?? Sources.FirstOrDefault();
-            Summary = $"설비 {snapshot.EquipmentCount}대 / PC {snapshot.PcCount}대 · 정상 {snapshot.Sources.Count(x => x.State == "정상")} · 실패·지연 {snapshot.Sources.Count(x => x.State is "실패" or "지연")} · 마지막 전체 실행 {snapshot.LastFullRunUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "없음"}";
+            Summary = $"설비 {snapshot.EquipmentCount}대 / PC {snapshot.PcCount}대 · Success {snapshot.Sources.Count(x => x.Health == "Success")} · Warning {snapshot.Sources.Count(x => x.Health == "Warning")} · Error {snapshot.Sources.Count(x => x.Health == "Error")} · 마지막 전체 실행 {snapshot.LastFullRunUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "없음"}";
             Status = "조회 완료 · 5초 자동 갱신 · 실적은 각 PC의 마지막 실행 기준입니다.";
         }
         catch (Exception error) { Status = "조회 실패: " + error.Message; logger.Write(Status, error); }
