@@ -1,7 +1,7 @@
 using Microsoft.Data.Sqlite;
 namespace DatasetHub;
 
-internal sealed class History : IDisposable
+internal sealed partial class History : IDisposable
 {
     private readonly SqliteConnection connection;
     public History(string path)
@@ -33,6 +33,7 @@ internal sealed class History : IDisposable
               Path TEXT NOT NULL, Error TEXT NOT NULL, UpdatedUtc TEXT NOT NULL);
             """;
         command.ExecuteNonQuery();
+        InitializeRuns();
         using var columns = connection.CreateCommand();
         columns.CommandText = "PRAGMA table_info(Files)";
         using (var reader = columns.ExecuteReader())
@@ -92,13 +93,16 @@ internal sealed class History : IDisposable
         command.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("O"));
         command.Parameters.AddWithValue("$modified", sourceModifiedUtc?.ToString("O") is { } value ? (object)value : DBNull.Value);
         command.ExecuteNonQuery();
+        if (status == "Failed" && error != null) ScanError(machine, pc, relative, error);
     }
     public void ScanError(string machine, string pc, string path, string error)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = "INSERT INTO ScanErrors (MachineId,PcId,Path,Error,UpdatedUtc) VALUES ($m,$p,$r,$e,$t)";
+        command.CommandText = "INSERT INTO ScanErrors (MachineId,PcId,Path,Error,UpdatedUtc,RunId,Operation) VALUES ($m,$p,$r,$e,$t,$run,$op)";
         command.Parameters.AddWithValue("$m", machine);
         command.Parameters.AddWithValue("$p", pc);
+        command.Parameters.AddWithValue("$run", (object?)RunId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$op", Operation);
         command.Parameters.AddWithValue("$r", path);
         command.Parameters.AddWithValue("$e", error);
         command.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("O"));

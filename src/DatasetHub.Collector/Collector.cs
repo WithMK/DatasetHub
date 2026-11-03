@@ -4,9 +4,9 @@ namespace DatasetHub;
 
 public sealed record CollectionProgress(string MachineId, string PcId, string Path, string Message);
 public sealed record SourceScanStatus(string MachineId, string PcId, string Path, int DateFolders, int Files, int Updated, int Unchanged, int Failed, DateTime? LatestWriteUtc,
-    string ImagePath = "", int ImageFiles = 0, int ImagesCopied = 0, int ImagesSkipped = 0, int ImageFailed = 0, int ImagesDeferred = 0);
+    string ImagePath = "", int ImageFiles = 0, int ImagesCopied = 0, int ImagesSkipped = 0, int ImageFailed = 0, int ImagesDeferred = 0, long LogBytes = 0, long ImageBytes = 0, int LogDeferred = 0);
 
-public sealed class Collector(CollectorOptions options, Action<CollectionProgress>? progress = null)
+public sealed class Collector(CollectorOptions options, Action<CollectionProgress>? progress = null, string scope = "All")
 {
     // Version retention is implemented but not enabled during the copy-only phase.
     private static readonly bool RetainVersions = false;
@@ -22,10 +22,17 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         using var history = new History(options.DatabasePath);
         var result = new CollectionResult();
         var mirrorOwners = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        history.BeginRun(from, to, scope);
+        try
+        {
         foreach (var machine in options.Equipments.Where(x => x.Enabled))
         foreach (var pc in machine.Pcs)
         {
             token.ThrowIfCancellationRequested();
+            history.BeginSource(machine.MachineId, pc.PcId);
+            var logBytesBefore = result.LogTransferredBytes;
+            var imageBytesBefore = result.ImageTransferredBytes;
+            var deferredBefore = result.Deferred;
             var updatedBefore = result.Collected;
             var unchangedBefore = result.Skipped;
             var failedBefore = result.Failed;
@@ -95,13 +102,18 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             { LogScanError(pc.SourceRoot, e); }
             }
             if (!string.IsNullOrWhiteSpace(pc.ImageSourceRoot))
+            {
+                history.Operation = "Image";
                 await new ImageCollector(options, history, progress).ScanAsync(machine.MachineId, pc, from, to, result, token);
+            }
             result.Sources.Add(new SourceScanStatus(machine.MachineId, pc.PcId, pc.SourceRoot,
                 dayCount, sourceFiles, result.Collected - updatedBefore, result.Skipped - unchangedBefore,
                 result.Failed - failedBefore, latestWriteUtc, pc.ImageSourceRoot,
                 result.ImagesFound - imagesBefore, result.ImagesCopied - imageCopiedBefore,
                 result.ImagesSkipped - imageSkippedBefore, result.ImageFailed - imageFailedBefore,
-                result.ImagesDeferred - imageDeferredBefore));
+                result.ImagesDeferred - imageDeferredBefore, result.LogTransferredBytes - logBytesBefore,
+                result.ImageTransferredBytes - imageBytesBefore, result.Deferred - deferredBefore));
+            history.EndSource(result.Sources[^1]);
             void LogScanError(string path, Exception e)
             {
                 history.ScanError(machine.MachineId, pc.PcId, path, e.Message);
@@ -110,7 +122,11 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                 Console.Error.WriteLine($"Scan failed {path}: {e.Message}");
             }
         }
+        history.EndRun(result.Failed > 0 ? "Failed" : "Success");
         return result;
+        }
+        catch (OperationCanceledException) { history.EndRun("Cancelled", "사용자 중지"); throw; }
+        catch (Exception error) { history.EndRun("Failed", error.Message); throw; }
     }
 
     private async Task CollectAsync(string machine, string pc, string relative, string source, History history, CollectionResult result, CancellationToken token)
@@ -156,6 +172,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                     history.Record(machine, pc, relative, "Collected", size, sourceModifiedUtc: modified);
                     result.Collected++;
                     result.AppendedBytes += size - saved.size;
+                    result.LogTransferredBytes += size - saved.size;
                     progress?.Invoke(new CollectionProgress(machine, pc, relative, $"추가분 {size - saved.size:N0}바이트 복사 · " + mirror));
                     return;
                 }
@@ -188,6 +205,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                 File.Move(temporary, mirror, overwrite: true);
             }
             history.Record(machine, pc, relative, "Collected", size, hash, sourceModifiedUtc: modified);
+            result.LogTransferredBytes += size; // verified transfer, including identical-content rechecks
             if (unchanged) result.Skipped++; else result.Collected++;
             progress?.Invoke(new CollectionProgress(machine, pc, relative,
                 (unchanged ? "기존 복사본 확인 · " : "새 복사본 저장 · ") + mirror));

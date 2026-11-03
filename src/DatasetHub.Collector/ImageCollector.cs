@@ -118,6 +118,7 @@ internal sealed class ImageCollector(CollectorOptions options, History history, 
             File.Move(temporary, target, overwrite: true);
             history.Record(machine, pc.PcId, key, "Collected", size, copiedHash, sourceModifiedUtc: modified);
             result.ImagesCopied++;
+            result.ImageTransferredBytes += size;
             progress?.Invoke(new CollectionProgress(machine, pc.PcId, relative, "이미지 복사 완료 · " + target));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
