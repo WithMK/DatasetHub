@@ -40,6 +40,21 @@ jobs:
           } finally {
             Remove-SmbShare -Name DatasetHubTest -Force
           }
+      - name: Independent watchdog heartbeat checks
+        shell: pwsh
+        run: |
+          $healthRoot = Join-Path $env:LOCALAPPDATA 'DatasetHub/health'
+          New-Item -ItemType Directory -Force $healthRoot | Out-Null
+          $healthPath = Join-Path $healthRoot "$PID.json"
+          try {
+            @{ ProcessId=$PID; StartedUtc=(Get-Process -Id $PID).StartTime.ToUniversalTime(); HeartbeatUtc=[datetime]::UtcNow; UiHeartbeatUtc=[datetime]::UtcNow.AddMinutes(-5); State='Running' } | ConvertTo-Json | Set-Content $healthPath
+            $output = & ./scripts/Watch-DatasetHub.ps1 -CollectorProcessId $PID -Once 6>&1 | Out-String
+            if ($output -notmatch 'UI heartbeat stale') { throw 'UI stall was not detected.' }
+            @{ ProcessId=$PID; StartedUtc=(Get-Process -Id $PID).StartTime.ToUniversalTime().AddDays(-1); HeartbeatUtc=[datetime]::UtcNow; UiHeartbeatUtc=[datetime]::UtcNow; State='Running' } | ConvertTo-Json | Set-Content $healthPath
+            $output = & ./scripts/Watch-DatasetHub.ps1 -CollectorProcessId $PID -Once 6>&1 | Out-String
+            if ($output -notmatch 'identity mismatch') { throw 'PID identity protection failed.' }
+            Write-Host 'PASS independent watchdog UI stall and PID reuse guards'
+          } finally { Remove-Item $healthPath -ErrorAction SilentlyContinue }
       - run: dotnet run --project tests/DatasetHub.SmokeTests --configuration Release
       - shell: pwsh
         run: |

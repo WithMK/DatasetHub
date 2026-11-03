@@ -53,8 +53,8 @@ public sealed class ReliabilityJournal
         c.Parameters.AddWithValue("$ok",success?(object)DateTime.UtcNow.ToString("O"):DBNull.Value);c.Parameters.AddWithValue("$bad",success?DBNull.Value:(object)DateTime.UtcNow.ToString("O"));c.Parameters.AddWithValue("$e",message);c.ExecuteNonQuery();return true;
     },false);
     public bool Collected(string machine,string pc,string relative) => With(db =>
-    { using var c=db.CreateCommand();c.CommandText="SELECT COUNT(*) FROM Files WHERE MachineId=$m AND PcId=$p AND RelativePath=$r AND Status='Collected'";
-      c.Parameters.AddWithValue("$m",machine);c.Parameters.AddWithValue("$p",pc);c.Parameters.AddWithValue("$r",relative);return Convert.ToInt64(c.ExecuteScalar())>0; },false);
+    { using var c=db.CreateCommand();c.CommandText="SELECT COUNT(*) FROM Files WHERE MachineId=$m AND PcId=$p AND (RelativePath=$r OR RelativePath=$native) AND Status='Collected'";
+      c.Parameters.AddWithValue("$m",machine);c.Parameters.AddWithValue("$p",pc);c.Parameters.AddWithValue("$r",relative);c.Parameters.AddWithValue("$native",relative.Replace('/',Path.DirectorySeparatorChar));return Convert.ToInt64(c.ExecuteScalar())>0; },false);
     public IReadOnlyList<(string Machine,string Pc,string Relative)> MissingFiles() => With<IReadOnlyList<(string,string,string)>>(db =>
     { using var c=db.CreateCommand();c.CommandText="SELECT MachineId,PcId,substr(Kind,9) FROM ReliabilityIncidents WHERE Kind LIKE 'Missing:%' AND RecoveredUtc IS NULL";
       var rows=new List<(string,string,string)>();using var reader=c.ExecuteReader();while(reader.Read())rows.Add((reader.GetString(0),reader.GetString(1),reader.GetString(2)));return rows; }, []);

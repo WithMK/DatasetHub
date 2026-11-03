@@ -4,7 +4,8 @@ param(
     [switch]$RestartOnCrash,
     [string]$Executable,
     [string]$ConfigPath,
-    [int]$MaxRestarts = 3
+    [int]$MaxRestarts = 3,
+    [switch]$Once
 )
 $ErrorActionPreference = 'Stop'
 $healthRoot = Join-Path $env:LOCALAPPDATA 'DatasetHub/health'
@@ -38,5 +39,6 @@ while ($true) {
     elseif (((Get-Date).ToUniversalTime() - [datetime]$health.HeartbeatUtc).TotalSeconds -gt $StaleSeconds) { $message = 'Process heartbeat stale. Inspect; do not launch a duplicate writer.' }
     elseif (((Get-Date).ToUniversalTime() - [datetime]$health.UiHeartbeatUtc).TotalSeconds -gt $StaleSeconds) { $message = 'UI heartbeat stale. Background collection may still run; inspect without killing it.' }
     if ($message -ne $lastAlert) { Add-Content $log "$(Get-Date -Format o) $message"; Write-Host $message; $lastAlert = $message }
+    if ($Once) { break }
     Start-Sleep -Seconds 5
 }

@@ -103,7 +103,13 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
         var selectedFrom = fromDate; var selectedTo = toDate;
         using var cts = new CancellationTokenSource(); running = cts; start.Refresh(); stop.Refresh();
         var ui = Application.Current.Dispatcher;
-        void Present(Action action) { if (!ui.HasShutdownStarted) _ = ui.BeginInvoke(action); }
+        var pendingUi = 0;
+        void Present(Action action)
+        {
+            if (ui.HasShutdownStarted) return;
+            if (Interlocked.Increment(ref pendingUi) > 1000) { Interlocked.Decrement(ref pendingUi); return; }
+            _ = ui.BeginInvoke(() => { try { action(); } finally { Interlocked.Decrement(ref pendingUi); } });
+        }
         try
         {
             var options = ReadOptions(configPath);
