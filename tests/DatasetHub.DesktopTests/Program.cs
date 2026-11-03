@@ -1,3 +1,8 @@
+using DatasetHub.Core;
+using Prism.Ioc;
+using Prism.Regions;
+using Prism.Events;
+using System.Windows.Threading;
 using DatasetHub.Desktop;
 
 var current = "previous.json";
@@ -16,6 +21,39 @@ var uiThread = new Thread(() =>
         var dialog = new ConfigPathWindow("previous.json");
         dialog.Loaded += (_, _) => dialog.Dispatcher.BeginInvoke(dialog.CancelSelection);
         if (dialog.ShowDialog() != false) throw new Exception("WPF modal cancel did not return false.");
+        var app = new App();
+        app.InitializeComponent();
+        app.Startup += (_, _) => app.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            try
+            {
+                var menu = app.Container.Resolve<IMenuRegistry>();
+                if (menu.Items.Count != 2) throw new Exception("Static modules did not register menus.");
+                try { menu.Register(menu.Items[0]); throw new Exception("Duplicate menu accepted."); }
+                catch (ArgumentException) { }
+                var regions = app.Container.Resolve<IRegionManager>();
+                object Navigate(string target)
+                {
+                    bool? success = null;
+                    regions.RequestNavigate(RegionNames.Main, target, result => success = result.Result);
+                    if (success != true) throw new Exception("Navigation failed: " + target);
+                    return regions.Regions[RegionNames.Main].ActiveViews.Single();
+                }
+                var first = (System.Windows.FrameworkElement)Navigate("Collector");
+                if (first.DataContext is not CollectorViewModel) throw new Exception("Collector auto wiring failed.");
+                var example = (System.Windows.FrameworkElement)Navigate("FrameworkExample");
+                var vm = (DatasetHub.Modules.Example.ExampleViewModel)example.DataContext;
+                vm.PublishCommand.Execute();
+                var shell = (DatasetHub.Shell.ShellViewModel)app.MainWindow.DataContext;
+                if (!shell.Status.Contains("예제 모듈")) throw new Exception("EventAggregator did not update Shell.");
+                var returned = (System.Windows.FrameworkElement)Navigate("Collector");
+                if (!ReferenceEquals(first.DataContext, returned.DataContext)) throw new Exception("Collector state lost on navigation.");
+                Console.WriteLine("PASS Prism modules, duplicate menu guard, Region navigation, DI, auto wiring, events, retained collector state");
+            }
+            catch (Exception e) { windowError = e; }
+            finally { app.Shutdown(); }
+        }));
+        app.Run();
     }
     catch (Exception e) { windowError = e; }
 });

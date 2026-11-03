@@ -83,3 +83,7 @@ ZIP 실행본에서는 두 번째 명령을 `.\DatasetHub.Desktop.exe`로 바꾸
 - [솔루션의 Git 수정 표시 처리](docs/solution-git-status.md)
 
 실제 생산 로그·이미지·운영 DB·접속 자격증명은 이 공개 Git 저장소에 올리지 않습니다.
+
+## 범용 Desktop Framework
+
+기존 EXE에서 왼쪽 메뉴로 데이터 수집과 모듈 예제를 전환합니다. [아키텍처 및 새 모듈 추가 방법](docs/UI-FRAMEWORK.md)을 참고하세요.

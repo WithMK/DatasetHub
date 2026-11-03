@@ -1,7 +1,7 @@
-<Window x:Class="DatasetHub.Desktop.MainWindow"
+<UserControl x:Class="DatasetHub.Desktop.CollectorView"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="DatasetHub · 표준 로그 수집 v0.3" Width="1050" Height="690" MinWidth="760" MinHeight="510" WindowStartupLocation="CenterScreen">
+ xmlns:prism="http://prismlibrary.com/" prism:ViewModelLocator.AutoWireViewModel="True">
  <Grid Margin="20">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
@@ -43,4 +43,4 @@
   <ListBox Grid.Row="6" ItemsSource="{Binding Messages}" FontFamily="Consolas" FontSize="12"/>
   <TextBlock Grid.Row="7" Text="시험용 화면 · 설비의 실제 저장 완료 규칙은 확인 전입니다. 원본에는 쓰거나 삭제하지 않습니다." Margin="0,12,0,0" Foreground="#555" TextWrapping="Wrap"/>
  </Grid>
-</Window>
+</UserControl>

@@ -6,12 +6,19 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
 using DatasetHub;
+using DatasetHub.Core;
+using DatasetHub.Modules.Collector;
+using Prism.Events;
 
 namespace DatasetHub.Desktop;
 
 public sealed class CollectorViewModel : INotifyPropertyChanged
 {
-    private string configPath = ConfigFileLocator.ExamplePath;
+    private string configPath;
+    private readonly IConfigurationService configuration;
+    private readonly ICollectorService collector;
+    private readonly IAppLogger logger;
+    private readonly IEventAggregator events;
     private DateTime? fromDate = DateTime.Today;
     private DateTime? toDate = DateTime.Today;
     private string status = "설정 파일을 확인하고 수집 시작을 누르세요.";
@@ -29,7 +36,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     public string ConfigPath { get => configPath; set { configPath = value; Changed(); CheckConfig(); } }
     public DateTime? FromDate { get => fromDate; set { fromDate = value; Changed(); } }
     public DateTime? ToDate { get => toDate; set { toDate = value; Changed(); } }
-    public string Status { get => status; private set { status = value; Changed(); } }
+    public string Status { get => status; private set { status = value; Changed(); events.GetEvent<StatusEvent>().Publish(value); } }
     public string Summary { get => summary; private set { summary = value; Changed(); } }
     public bool AutoRepeat { get => autoRepeat; set { autoRepeat = value; Changed(); } }
     public bool UseDateRange { get => useDateRange; set { useDateRange = value; Changed(); } }
@@ -38,21 +45,19 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
     public ICommand StartCommand => start;
     public ICommand StopCommand => stop;
 
-    public CollectorViewModel()
+    public CollectorViewModel(IConfigurationService configuration, ICollectorService collector, IAppLogger logger, IEventAggregator events)
     {
+        this.configuration = configuration; this.collector = collector; this.logger = logger; this.events = events;
+        configPath = configuration.DefaultPath;
+        events.GetEvent<ShutdownEvent>().Subscribe(RequestStop);
         start = new RelayCommand(() => _ = RunAsync(), () => running == null && configValid);
         stop = new RelayCommand(RequestStop, () => running != null);
         CheckConfig();
     }
-    private static CollectorOptions ReadOptions(string path)
+    private CollectorOptions ReadOptions(string path)
     {
-        var full = Path.GetFullPath(path);
-        var options = JsonSerializer.Deserialize<CollectorOptions>(File.ReadAllText(full), new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
-        }) ?? throw new InvalidDataException("빈 설정 파일입니다.");
-        options.Validate(Path.GetDirectoryName(full)!);
+        var options = configuration.Read<CollectorOptions>(path);
+        options.Validate(Path.GetDirectoryName(Path.GetFullPath(path))!);
         return options;
     }
     private void CheckConfig()
@@ -103,14 +108,14 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
                 var first = useDateRange ? DateOnly.FromDateTime(fromDate!.Value) : DateOnly.FromDateTime(DateTime.Today.AddDays(-2));
                 var last = useDateRange ? DateOnly.FromDateTime(toDate!.Value) : DateOnly.FromDateTime(DateTime.Today);
                 Status = allDates ? "전체 날짜 폴더 확인 중…" : $"{first:yyyy-MM-dd} ~ {last:yyyy-MM-dd} 확인 중…";
-                var result = await Task.Run(() => new Collector(options, item =>
+                var result = await collector.RunAsync(options, allDates ? DateOnly.MinValue : first, allDates ? DateOnly.MaxValue : last, item =>
                 {
                     ui.BeginInvoke(() =>
                     {
                         Messages.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {item.MachineId}/{item.PcId} {item.Path} · {item.Message}");
                         if (Messages.Count > 1000) Messages.RemoveAt(Messages.Count - 1);
                     });
-                }).RunAsync(allDates ? DateOnly.MinValue : first, allDates ? DateOnly.MaxValue : last, cts.Token));
+                }, cts.Token);
                 SourceStatuses.Clear();
                 foreach (var source in result.Sources)
                 {
@@ -130,7 +135,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
             } while (!cts.IsCancellationRequested);
         }
         catch (OperationCanceledException) { Status = "중단했습니다. 같은 기간으로 다시 실행하면 이어서 확인합니다."; }
-        catch (Exception e) { Status = "실행 실패: " + e.Message; Messages.Add(e.ToString()); }
+        catch (Exception e) { Status = "실행 실패: " + e.Message; Messages.Add(e.ToString()); logger.Write("수집 실행 실패", e); }
         finally { running = null; cts.Dispose(); start.Refresh(); stop.Refresh(); }
     }
     private void Changed([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
