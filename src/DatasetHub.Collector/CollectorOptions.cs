@@ -2,6 +2,7 @@ namespace DatasetHub;
 
 public sealed class CollectorOptions
 {
+    public ReliabilityOptions Reliability { get; set; } = new();
     public string ArchiveRoot { get; set; } = "";
     public string DestinationRoot { get; set; } = "";
     public string DatabasePath { get; set; } = "";
@@ -11,6 +12,8 @@ public sealed class CollectorOptions
 
     public void Validate(string baseDirectory)
     {
+        if (Reliability == null) throw new ArgumentException("reliability cannot be null.");
+        Reliability.Validate();
         if (!string.IsNullOrWhiteSpace(DestinationRoot))
         {
             if (!string.IsNullOrWhiteSpace(ArchiveRoot) &&

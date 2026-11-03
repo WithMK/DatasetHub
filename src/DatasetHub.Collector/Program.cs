@@ -17,7 +17,7 @@ try
         new JsonSerializerOptions { PropertyNameCaseInsensitive = true, UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
         ?? throw new InvalidDataException("Empty configuration.");
     options.Validate(Path.GetDirectoryName(configPath)!);
-    var result = await new Collector(options).RunAsync(from, to, cancellation.Token);
+    var result = await new ReliableCollector(options, scope: "Manual").RunAsync(from, to, cancellation.Token);
     Console.WriteLine(JsonSerializer.Serialize(result));
     return result.Failed + result.Deferred == 0 ? 0 : 1;
 }

@@ -9,14 +9,16 @@ internal sealed class ImageCollector(CollectorOptions options, History history, 
     private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase)
         { ".png", ".tif", ".tiff", ".jpg", ".jpeg", ".bmp" };
 
-    public async Task ScanAsync(string machine, SourcePc pc, DateOnly from, DateOnly to, CollectionResult result, CancellationToken token)
+    public async Task<bool> ScanAsync(string machine, SourcePc pc, DateOnly from, DateOnly to, CollectionResult result, CancellationToken token)
     {
         var root = pc.ImageSourceRoot;
+        var accessible = false;
         progress?.Invoke(new CollectionProgress(machine, pc.PcId, root, "이미지 원본 경로 확인"));
         try
         {
             RejectLink(root);
-            foreach (var day in Directory.EnumerateDirectories(root))
+            var sourceDays = Directory.GetDirectories(root); accessible = true;
+            foreach (var day in sourceDays)
             {
                 token.ThrowIfCancellationRequested();
                 if (!DateOnly.TryParseExact(Path.GetFileName(day), "yyyyMMdd", CultureInfo.InvariantCulture,
@@ -52,6 +54,8 @@ internal sealed class ImageCollector(CollectorOptions options, History history, 
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Failure(root, e); }
         progress?.Invoke(new CollectionProgress(machine, pc.PcId, root, "이미지 경로 확인 완료"));
+
+        return accessible;
 
         void Failure(string path, Exception e)
         {
@@ -105,7 +109,7 @@ internal sealed class ImageCollector(CollectorOptions options, History history, 
             await using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write,
                 FileShare.None, 131072, FileOptions.Asynchronous))
             {
-                await input.CopyToAsync(output, token);
+                await TransferIO.CopyAsync(input, output, token, () => progress?.Invoke(new CollectionProgress("", "", source, "파일 전송 진행 중")));
                 await output.FlushAsync(token);
                 output.Flush(flushToDisk: true);
             }
@@ -129,11 +133,11 @@ internal sealed class ImageCollector(CollectorOptions options, History history, 
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
-    private static async Task<string> HashAsync(string path, CancellationToken token)
+    private async Task<string> HashAsync(string path, CancellationToken token)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
             FileShare.ReadWrite | FileShare.Delete, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        return Convert.ToHexString(await SHA256.HashDataAsync(stream, token));
+        return await TransferIO.HashAsync(stream, token, () => progress?.Invoke(new CollectionProgress("", "", path, "무결성 검증 진행 중")));
     }
     private static void RejectLink(string path)
     {

@@ -20,6 +20,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         using var archiveLock = new FileStream(Path.Combine(options.ArchiveRoot, ".collector.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         using var databaseLock = new FileStream(options.DatabasePath + ".collector.lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         using var history = new History(options.DatabasePath);
+        var reliability = new ReliabilityJournal(options.DatabasePath); reliability.Initialize();
         var result = new CollectionResult();
         var mirrorOwners = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         history.BeginRun(from, to, scope);
@@ -41,6 +42,8 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             var imageSkippedBefore = result.ImagesSkipped;
             var imageFailedBefore = result.ImageFailed;
             var imageDeferredBefore = result.ImagesDeferred;
+            var logAccessible = string.IsNullOrWhiteSpace(pc.SourceRoot);
+            var imageAccessible = string.IsNullOrWhiteSpace(pc.ImageSourceRoot);
             var dayCount = 0;
             var sourceFiles = 0;
             DateTime? latestWriteUtc = null;
@@ -51,7 +54,9 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             try
             {
                 RejectLink(pc.SourceRoot);
-                foreach (var day in Directory.EnumerateDirectories(pc.SourceRoot))
+                var sourceDays = Directory.GetDirectories(pc.SourceRoot);
+                logAccessible = true;
+                foreach (var day in sourceDays)
                 {
                     if (!DateOnly.TryParseExact(Path.GetFileName(day), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
                         || date < from || date > to) continue;
@@ -104,7 +109,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
             if (!string.IsNullOrWhiteSpace(pc.ImageSourceRoot))
             {
                 history.Operation = "Image";
-                await new ImageCollector(options, history, progress).ScanAsync(machine.MachineId, pc, from, to, result, token);
+                imageAccessible = await new ImageCollector(options, history, progress).ScanAsync(machine.MachineId, pc, from, to, result, token);
             }
             result.Sources.Add(new SourceScanStatus(machine.MachineId, pc.PcId, pc.SourceRoot,
                 dayCount, sourceFiles, result.Collected - updatedBefore, result.Skipped - unchangedBefore,
@@ -114,6 +119,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                 result.ImagesDeferred - imageDeferredBefore, result.LogTransferredBytes - logBytesBefore,
                 result.ImageTransferredBytes - imageBytesBefore, result.Deferred - deferredBefore));
             history.EndSource(result.Sources[^1]);
+            reliability.Connection(machine.MachineId,pc.PcId,logAccessible && imageAccessible,logAccessible && imageAccessible ? "루트 폴더 목록 조회 완료; 파일별 오류는 별도 확인" : "로그/이미지 원본 목록 접근 실패; ScanErrors 확인");
             void LogScanError(string path, Exception e)
             {
                 history.ScanError(machine.MachineId, pc.PcId, path, e.Message);
@@ -183,7 +189,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                 FileShare.ReadWrite | FileShare.Delete, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
             await using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 131072, FileOptions.Asynchronous))
             {
-                await input.CopyToAsync(output, token);
+                await TransferIO.CopyAsync(input, output, token, () => progress?.Invoke(new CollectionProgress("", "", source, "파일 전송 진행 중")));
                 await output.FlushAsync(token);
                 output.Flush(flushToDisk: true);
             }
@@ -229,7 +235,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         await output.ReadExactlyAsync(mirrorTail, token);
         return sourceTail.AsSpan().SequenceEqual(mirrorTail);
     }
-    private static async Task AppendAsync(string source, string mirror, long offset, long targetSize, DateTime modified, CancellationToken token)
+    private async Task AppendAsync(string source, string mirror, long offset, long targetSize, DateTime modified, CancellationToken token)
     {
         await using var input = new FileStream(source, FileMode.Open, FileAccess.Read,
             FileShare.ReadWrite | FileShare.Delete, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
@@ -241,6 +247,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         try
         {
             var buffer = new byte[131072];
+            var heartbeat = System.Diagnostics.Stopwatch.GetTimestamp();
             long remaining = targetSize - offset;
             while (remaining > 0)
             {
@@ -248,6 +255,7 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
                 if (read == 0) throw new IOException("Source shrank during append.");
                 await output.WriteAsync(buffer.AsMemory(0, read), token);
                 remaining -= read;
+                if (System.Diagnostics.Stopwatch.GetElapsedTime(heartbeat).TotalSeconds >= 1) { progress?.Invoke(new CollectionProgress("", "", source, "증분 전송 진행 중")); heartbeat = System.Diagnostics.Stopwatch.GetTimestamp(); }
             }
             await output.FlushAsync(token);
             output.Flush(flushToDisk: true);
@@ -277,10 +285,10 @@ public sealed class Collector(CollectorOptions options, Action<CollectionProgres
         else File.Copy(previous, archived);
     }
 
-    private static async Task<string> HashAsync(string path, CancellationToken token)
+    private async Task<string> HashAsync(string path, CancellationToken token)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        return Convert.ToHexString(await SHA256.HashDataAsync(stream, token));
+        return await TransferIO.HashAsync(stream, token, () => progress?.Invoke(new CollectionProgress("", "", path, "무결성 검증 진행 중")));
     }
     private static void RejectLink(string path)
     {
