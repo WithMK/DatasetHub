@@ -113,6 +113,7 @@ public sealed class CollectorViewModel : INotifyPropertyChanged
             var firstScan = true;
             do
             {
+                if (autoRepeat && scheduledDatabase == null) { scheduledDatabase = options.DatabasePath; schedules.Start(scheduledDatabase); }
                 // Without a manual date range, scan all dates initially; repeated scans cover recent days.
                 var allDates = !useDateRange && (firstScan || !autoRepeat);
                 var first = useDateRange ? DateOnly.FromDateTime(fromDate!.Value) : DateOnly.FromDateTime(DateTime.Today.AddDays(-2));

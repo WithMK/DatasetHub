@@ -25,6 +25,11 @@ internal sealed partial class History
         using (var reader = cmd.ExecuteReader()) while (reader.Read()) columns.Add(reader.GetString(1));
         foreach (var name in new[] { "RunId", "Operation" })
             if (!columns.Contains(name)) { cmd.CommandText = $"ALTER TABLE ScanErrors ADD COLUMN {name} TEXT"; cmd.ExecuteNonQuery(); }
+        if (!columns.Contains("RunId"))
+        {
+            cmd.CommandText = "INSERT INTO ScanErrors(MachineId,PcId,Path,Error,UpdatedUtc,Operation) SELECT MachineId,PcId,RelativePath,Error,UpdatedUtc,'LegacyFile' FROM Files WHERE Status='Failed' AND Error IS NOT NULL";
+            cmd.ExecuteNonQuery();
+        }
         cmd.CommandText = "CREATE INDEX IF NOT EXISTS IX_ScanErrors_SourceTime ON ScanErrors(MachineId COLLATE NOCASE,PcId COLLATE NOCASE,UpdatedUtc DESC)";
         cmd.ExecuteNonQuery(); tx.Commit();
     }

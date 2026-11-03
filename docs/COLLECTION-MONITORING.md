@@ -18,7 +18,7 @@
 
 ## 실행 이력과 호환성
 
-기존 Files/LogRows/ParseState/ScanErrors를 보존합니다. 기존 수집 잠금을 획득한 뒤 트랜잭션으로 CollectionRuns, SourceCollectionRuns 및 조회 인덱스를 생성하고 ScanErrors에 nullable RunId/Operation을 추가합니다. 기존 오류는 실행 ID 없는 이력으로 보입니다. 조회만으로 DB를 생성하거나 마이그레이션하지 않습니다.
+기존 Files/LogRows/ParseState/ScanErrors를 보존합니다. 기존 수집 잠금을 획득한 뒤 트랜잭션으로 CollectionRuns, SourceCollectionRuns 및 조회 인덱스를 생성하고 ScanErrors에 nullable RunId/Operation을 추가합니다. 기존 ScanErrors 및 현재 Files에 남아 있는 Failed 오류는 실행 ID 없는 이력으로 보존됩니다. 조회만으로 DB를 생성하거나 마이그레이션하지 않습니다.
 PC별 StatsJson은 실행 완료 당시의 최소 통계 스냅샷이며 파일별 본문이나 파일 목록을 중복 저장하지 않습니다. 기존 파일 실패도 ScanErrors에 추가해 재시도 후 사라지지 않게 했습니다. 이전 버전에서 이미 덮어쓴 오류는 복원할 수 없습니다.
 실행 취소는 Cancelled, 비정상 종료는 다음 수집 시작 시 Interrupted로 남깁니다. 시작 전 설정/잠금/DB 열기 실패는 실행 행을 만들 수 없으며 실행 화면에 표시합니다.
 

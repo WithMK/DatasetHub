@@ -10,7 +10,7 @@ public sealed record SourceCollectionState(string MachineId, string PcId, string
     public string LastAttempt => LastAttemptUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "없음";
     public string LastSuccess => LastSuccessUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "없음";
 }
-public sealed record CollectionRunEntry(string RunId, string MachineId, string PcId, DateTime StartedUtc, DateTime? CompletedUtc, string Outcome, CollectionMetrics Log, CollectionMetrics Image);
+public sealed record CollectionRunEntry(string RunId, string MachineId, string PcId, DateTime StartedUtc, DateTime? CompletedUtc, string Outcome, CollectionMetrics Log, CollectionMetrics Image, string Error = "");
 public sealed record CollectionErrorEntry(DateTime OccurredUtc, string MachineId, string PcId, string Path, string Error, string Operation, string RunId);
 public sealed record MonitoringSnapshot(int EquipmentCount, int PcCount, DateTime? LastFullRunUtc, IReadOnlyList<SourceCollectionState> Sources);
 public interface ICollectionMonitoringService

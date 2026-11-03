@@ -59,16 +59,16 @@ public sealed class CollectionMonitoringService(IConfigurationService configurat
             if (hasRuns)
             {
                 using var cmd = db!.CreateCommand();
-                cmd.CommandText = "SELECT StartedUtc,Outcome,StatsJson FROM SourceCollectionRuns WHERE MachineId=$m COLLATE NOCASE AND PcId=$p COLLATE NOCASE ORDER BY StartedUtc DESC LIMIT 1";
+                cmd.CommandText = "SELECT s.StartedUtc,s.Outcome,s.StatsJson,CASE WHEN s.Outcome IN ('Failed','Cancelled','Interrupted') THEN r.Error ELSE NULL END FROM SourceCollectionRuns s JOIN CollectionRuns r ON r.Id=s.RunId WHERE s.MachineId=$m COLLATE NOCASE AND s.PcId=$p COLLATE NOCASE ORDER BY s.StartedUtc DESC LIMIT 1";
                 Key(cmd, machine.MachineId, pc.PcId);
-                using (var reader = cmd.ExecuteReader()) if (reader.Read()) { attempt = Date(reader.GetString(0)); outcome = reader.GetString(1); metrics = Metrics(reader.IsDBNull(2) ? null : reader.GetString(2)); }
+                using (var reader = cmd.ExecuteReader()) if (reader.Read()) { attempt = Date(reader.GetString(0)); outcome = reader.GetString(1); metrics = Metrics(reader.IsDBNull(2) ? null : reader.GetString(2)); error = reader.IsDBNull(3) ? "" : reader.GetString(3); }
                 cmd.CommandText = "SELECT MAX(CompletedUtc) FROM SourceCollectionRuns WHERE MachineId=$m COLLATE NOCASE AND PcId=$p COLLATE NOCASE AND Outcome='Success'";
                 if (cmd.ExecuteScalar() is string text) success = Date(text);
             }
             if (db != null && HasTable(db, "ScanErrors"))
             {
                 using var cmd = db.CreateCommand(); cmd.CommandText = "SELECT Error FROM ScanErrors WHERE MachineId=$m COLLATE NOCASE AND PcId=$p COLLATE NOCASE ORDER BY UpdatedUtc DESC,Id DESC LIMIT 1";
-                Key(cmd, machine.MachineId, pc.PcId); error = cmd.ExecuteScalar() as string ?? "";
+                Key(cmd, machine.MachineId, pc.PcId); var scanError = cmd.ExecuteScalar() as string; if (error.Length == 0) error = scanError ?? "";
             }
             var state = !machine.Enabled ? "비활성" : attempt == null ? "이력 없음" : outcome switch
             { "Running" => active ? "수집 중" : "중단", "Success" => "정상", "Failed" => "실패", _ => "중단" };
@@ -83,14 +83,16 @@ public sealed class CollectionMonitoringService(IConfigurationService configurat
     private static void Key(SqliteCommand cmd, string machine, string pc) { cmd.Parameters.AddWithValue("$m", machine); cmd.Parameters.AddWithValue("$p", pc); }
     public Task<IReadOnlyList<CollectionRunEntry>> RunsAsync(string configurationPath, string machine, string pc) => Task.Run<IReadOnlyList<CollectionRunEntry>>(() =>
     {
-        using var db = Open(Options(configurationPath).DatabasePath); var rows = new List<CollectionRunEntry>();
+        var databasePath = Options(configurationPath).DatabasePath;
+        using var db = Open(databasePath); var rows = new List<CollectionRunEntry>();
+        var active = WriterActive(databasePath);
         if (db == null || !HasTable(db, "SourceCollectionRuns")) return rows;
         using var cmd = db.CreateCommand(); Key(cmd, machine, pc);
-        cmd.CommandText = "SELECT RunId,StartedUtc,CompletedUtc,Outcome,StatsJson FROM SourceCollectionRuns WHERE MachineId=$m COLLATE NOCASE AND PcId=$p COLLATE NOCASE ORDER BY StartedUtc DESC LIMIT 200";
+        cmd.CommandText = "SELECT s.RunId,s.StartedUtc,s.CompletedUtc,s.Outcome,s.StatsJson,CASE WHEN s.Outcome IN ('Failed','Cancelled','Interrupted') THEN r.Error ELSE NULL END FROM SourceCollectionRuns s JOIN CollectionRuns r ON r.Id=s.RunId WHERE s.MachineId=$m COLLATE NOCASE AND s.PcId=$p COLLATE NOCASE ORDER BY s.StartedUtc DESC LIMIT 200";
         using var reader = cmd.ExecuteReader(); while (reader.Read())
         {
             var metrics = Metrics(reader.IsDBNull(4) ? null : reader.GetString(4));
-            rows.Add(new(reader.GetString(0), machine, pc, Date(reader.GetString(1)), reader.IsDBNull(2) ? null : Date(reader.GetString(2)), reader.GetString(3), metrics.Log, metrics.Image));
+            rows.Add(new(reader.GetString(0), machine, pc, Date(reader.GetString(1)), reader.IsDBNull(2) ? null : Date(reader.GetString(2)), reader.GetString(3) == "Running" && !active ? "Interrupted" : reader.GetString(3), metrics.Log, metrics.Image, reader.IsDBNull(5) ? "" : reader.GetString(5)));
         }
         return rows;
     });

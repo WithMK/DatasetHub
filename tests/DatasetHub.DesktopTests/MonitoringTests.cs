@@ -31,6 +31,7 @@ internal static class MonitoringTests
                 cmd.CommandText = """
                     CREATE TABLE Files(MachineId TEXT NOT NULL,PcId TEXT NOT NULL,RelativePath TEXT NOT NULL,Status TEXT NOT NULL,Size INTEGER,Sha256 TEXT,Error TEXT,Attempts INTEGER NOT NULL DEFAULT 1,UpdatedUtc TEXT NOT NULL,PRIMARY KEY(MachineId,PcId,RelativePath));
                     INSERT INTO Files VALUES('LEGACY','PC','old.log','Collected',10,NULL,NULL,1,'2026-01-01T00:00:00.0000000Z');
+                    INSERT INTO Files VALUES('LEGACY','PC','failed.log','Failed',NULL,NULL,'legacy file failure',1,'2026-01-01T00:00:00.0000000Z');
                     CREATE TABLE ScanErrors(Id INTEGER PRIMARY KEY,MachineId TEXT NOT NULL,PcId TEXT NOT NULL,Path TEXT NOT NULL,Error TEXT NOT NULL,UpdatedUtc TEXT NOT NULL);
                     INSERT INTO ScanErrors VALUES(1,'M1','OFFLINE','old','legacy error','2026-01-01T00:00:00.0000000Z');
                     """; cmd.ExecuteNonQuery();
@@ -38,6 +39,7 @@ internal static class MonitoringTests
             Check((await service.ReadAsync(path, TimeSpan.Zero)).Sources[0].State == "이력 없음", "old database readable without fabricated run dates");
             Check((await service.ErrorsAsync(path,"M1","OFFLINE")).Single().Operation == "기존 이력", "legacy scan errors visible before migration");
             await new Collector(options).RunAllAsync();
+            Check((await service.ErrorsAsync(path,"LEGACY","PC")).Single().Error == "legacy file failure", "migration preserves previously retained file errors");
             var first = await service.ReadAsync(path, TimeSpan.Zero); var dual = first.Sources[0];
             Check(dual.State == "정상" && dual.LastAttemptUtc != null && dual.LastSuccessUtc != null && dual.Log.Copied == 1 && dual.Log.Bytes == 5 && dual.Image.Deferred == 1, "real attempt timestamps and separate log/image metrics");
             Check(first.Sources[1].State == "정상" && first.Sources[1].Log.Found == 0 && first.Sources[2].State == "실패", "zero-new-file success distinct from source failure");
@@ -54,7 +56,7 @@ internal static class MonitoringTests
             using (var db = new SqliteConnection($"Data Source={options.DatabasePath};Pooling=False"))
             {
                 db.Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "UPDATE SourceCollectionRuns SET CompletedUtc='2020-01-01T00:00:00.0000000Z' WHERE Outcome='Success'"; cmd.ExecuteNonQuery();
-                cmd.CommandText = "SELECT COUNT(*) FROM Files WHERE MachineId='LEGACY'"; Check(Convert.ToInt32(cmd.ExecuteScalar()) == 1, "automatic schema migration preserves existing file history");
+                cmd.CommandText = "SELECT COUNT(*) FROM Files WHERE MachineId='LEGACY' AND RelativePath='old.log'"; Check(Convert.ToInt32(cmd.ExecuteScalar()) == 1, "automatic schema migration preserves existing file history");
             }
             Check((await service.ReadAsync(path, TimeSpan.Zero)).Sources[0].State == "지연", "delay only while active Desktop schedule misses completion deadline");
             schedules.Stop(options.DatabasePath);
